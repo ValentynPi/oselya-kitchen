@@ -145,7 +145,7 @@ function AddRecipeInner() {
     setError("");
   }
 
-  function save() {
+  async function save() {
     if (!draft) return;
     if (!draft.title.trim()) {
       setError("Вкажіть назву страви");
@@ -165,22 +165,25 @@ function AddRecipeInner() {
       return;
     }
 
-    const recipe = addRecipe({
-      title: draft.title.trim(),
-      description: draft.description.trim() || "Сімейний рецепт",
-      visibility: draft.visibility,
-      sourceUrl: draft.sourceUrl.trim() || undefined,
-      ingredients,
-      steps,
-      imageUrl: draft.imageUrl,
-      cookTimeMinutes: draft.cookTimeMinutes,
-      mealTypes: draft.mealTypes.length ? draft.mealTypes : ["dinner"],
-      dietTags: [],
-      cookMethods: ["stovetop"],
-      servings: draft.servings,
-    });
-
-    router.push(`/recipes/${recipe.id}`);
+    try {
+      setError("");
+      const recipe = await addRecipe({
+        title: draft.title.trim(),
+        description: draft.description.trim() || "Сімейний рецепт",
+        sourceUrl: draft.sourceUrl.trim() || undefined,
+        ingredients,
+        steps,
+        imageUrl: draft.imageUrl,
+        cookTimeMinutes: draft.cookTimeMinutes,
+        mealTypes: draft.mealTypes.length ? draft.mealTypes : ["dinner"],
+        dietTags: [],
+        cookMethods: ["stovetop"],
+        servings: draft.servings,
+      });
+      router.push(`/recipes/${recipe.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не вдалося зберегти рецепт");
+    }
   }
 
   return (
@@ -378,19 +381,13 @@ function AddRecipeInner() {
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() =>
-                setDraft({
-                  ...draft,
-                  visibility: draft.visibility === "shared" ? "private" : "shared",
-                })
-              }
-              className="rounded-lg bg-mist px-3 py-1.5 text-xs text-ink-soft"
-            >
-              {draft.visibility === "shared" ? "Спільний" : "Приватний"}
-            </button>
-          </div>
+<button
+                type="button"
+                className="rounded-lg bg-leaf/10 px-3 py-1.5 text-xs text-leaf-deep"
+              >
+                Бачать усі на сайті
+              </button>
+            </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between">
@@ -518,7 +515,7 @@ function AddRecipeInner() {
           <div className="flex flex-wrap gap-3 pt-2">
             <button
               type="button"
-              onClick={save}
+              onClick={() => void save()}
               className="rounded-xl bg-leaf px-6 py-3 text-sm font-medium text-cream hover:bg-leaf-deep"
             >
               Зберегти в сімейну книгу

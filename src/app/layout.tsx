@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, Unbounded } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
+import { SharedKitchenSync } from "@/components/SharedKitchenSync";
 import "./globals.css";
 
 const unbounded = Unbounded({
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="uk">
       <body className={`${unbounded.variable} ${manrope.variable} antialiased`}>
+        <SharedKitchenSync />
         <AppShell>{children}</AppShell>
       </body>
     </html>

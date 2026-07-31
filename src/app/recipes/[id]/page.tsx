@@ -19,9 +19,7 @@ export default function RecipeDetailPage({
   const categories = useKitchenStore((s) => s.categories);
   const favorites = useKitchenStore((s) => s.favorites);
   const toggleFavorite = useKitchenStore((s) => s.toggleFavorite);
-  const setVisibility = useKitchenStore((s) => s.setVisibility);
   const addToPlan = useKitchenStore((s) => s.addToPlan);
-  const user = useKitchenStore((s) => s.user);
   const [mounted, setMounted] = useState(false);
   const [added, setAdded] = useState(false);
 
@@ -57,7 +55,6 @@ export default function RecipeDetailPage({
   }
 
   const isFav = favorites.includes(recipe.id);
-  const canEditPrivacy = user?.id === recipe.authorId;
 
   return (
     <AuthGate>
@@ -106,20 +103,9 @@ export default function RecipeDetailPage({
           >
             {added ? "Додано до меню" : "У план меню"}
           </button>
-          {canEditPrivacy && (
-            <button
-              type="button"
-              onClick={() =>
-                setVisibility(
-                  recipe.id,
-                  recipe.visibility === "shared" ? "private" : "shared",
-                )
-              }
-              className="rounded-xl bg-mist px-4 py-2 text-sm text-ink-soft"
-            >
-              {recipe.visibility === "shared" ? "Зробити приватним" : "Зробити спільним"}
-            </button>
-          )}
+          <span className="rounded-xl bg-mist px-4 py-2 text-sm text-ink-soft">
+            Бачать усі відвідувачі сайту
+          </span>
         </div>
 
         <p className="mt-6 max-w-2xl text-lg text-ink-soft">{recipe.description}</p>

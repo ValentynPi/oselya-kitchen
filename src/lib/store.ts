@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ensureCategory, maybeSplitCategory, parseImportUrl, suggestCategoryName } from "./ai";
+import { parseImportUrl } from "./ai";
 import { buildShoppingList } from "./kitchen";
 import { demoUser, initialCategories, initialRecipes } from "./seed";
 import type {
@@ -24,14 +24,20 @@ interface KitchenState {
   mealPlan: MealPlanEntry[];
   shoppingList: ShoppingItem[];
   searchHistory: SearchHistoryItem[];
+  syncStatus: "idle" | "loading" | "ready" | "error";
+  syncError: string | null;
   signIn: () => void;
   signOut: () => void;
+  hydrateShared: () => Promise<void>;
   toggleFavorite: (recipeId: string) => void;
-  addRecipe: (input: Omit<Recipe, "id" | "createdAt" | "categoryId" | "authorId" | "authorName"> & {
-    categoryName?: string;
-  }) => Recipe;
-  importFromUrl: (url: string) => Recipe;
-  setVisibility: (recipeId: string, visibility: Visibility) => void;
+  addRecipe: (
+    input: Omit<Recipe, "id" | "createdAt" | "categoryId" | "authorId" | "authorName" | "visibility"> & {
+      categoryName?: string;
+      visibility?: Visibility;
+    },
+  ) => Promise<Recipe>;
+  importFromUrl: (url: string) => Promise<Recipe>;
+  setVisibility: (recipeId: string, visibility: Visibility) => Promise<void>;
   addToPlan: (date: string, mealType: MealType, recipeId: string, servings: number) => void;
   removeFromPlan: (entryId: string) => void;
   generateShoppingList: () => void;
@@ -78,9 +84,36 @@ export const useKitchenStore = create<KitchenState>()(
       ],
       shoppingList: [],
       searchHistory: [],
+      syncStatus: "idle",
+      syncError: null,
 
       signIn: () => set({ user: demoUser }),
       signOut: () => set({ user: null }),
+
+      hydrateShared: async () => {
+        const wasReady = get().syncStatus === "ready";
+        if (!wasReady) set({ syncStatus: "loading", syncError: null });
+        try {
+          const res = await fetch("/api/recipes", { cache: "no-store" });
+          const data = (await res.json()) as {
+            categories?: Category[];
+            recipes?: Recipe[];
+            error?: string;
+          };
+          if (!res.ok) throw new Error(data.error || "Sync failed");
+          set({
+            categories: data.categories ?? initialCategories,
+            recipes: (data.recipes ?? []).map((r) => ({ ...r, visibility: "shared" })),
+            syncStatus: "ready",
+            syncError: null,
+          });
+        } catch (err) {
+          set({
+            syncStatus: wasReady ? "ready" : "error",
+            syncError: err instanceof Error ? err.message : "Sync failed",
+          });
+        }
+      },
 
       toggleFavorite: (recipeId) =>
         set((s) => ({
@@ -89,37 +122,49 @@ export const useKitchenStore = create<KitchenState>()(
             : [...s.favorites, recipeId],
         })),
 
-      addRecipe: (input) => {
+      addRecipe: async (input) => {
         const user = get().user ?? demoUser;
-        const categoryName = input.categoryName ?? suggestCategoryName(input);
-        let categories = get().categories;
-        const ensured = ensureCategory(categories, categoryName);
-        categories = ensured.categories;
-
-        const recipe: Recipe = {
-          ...input,
-          id: uid("r"),
-          categoryId: ensured.categoryId,
-          authorId: user.id,
-          authorName: user.name,
-          createdAt: new Date().toISOString(),
+        const res = await fetch("/api/recipes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipe: {
+              ...input,
+              authorId: user.id,
+              authorName: user.name,
+              visibility: "shared",
+            },
+          }),
+        });
+        const data = (await res.json()) as {
+          recipe?: Recipe;
+          kitchen?: { categories: Category[]; recipes: Recipe[] };
+          error?: string;
         };
+        if (!res.ok || !data.recipe) {
+          throw new Error(data.error || "Не вдалося зберегти рецепт");
+        }
 
-        let recipes = [...get().recipes, recipe];
-        const split = maybeSplitCategory(categories, recipes, ensured.categoryId);
-        categories = split.categories;
-        recipes = split.recipes;
+        if (data.kitchen) {
+          set({
+            categories: data.kitchen.categories,
+            recipes: data.kitchen.recipes.map((r) => ({ ...r, visibility: "shared" })),
+            syncStatus: "ready",
+          });
+        } else {
+          set((s) => ({
+            recipes: [...s.recipes.filter((r) => r.id !== data.recipe!.id), data.recipe!],
+          }));
+        }
 
-        set({ categories, recipes });
-        return recipes.find((r) => r.id === recipe.id) ?? recipe;
+        return data.recipe;
       },
 
-      importFromUrl: (url) => {
+      importFromUrl: async (url) => {
         const parsed = parseImportUrl(url);
         return get().addRecipe({
           title: parsed.title,
           description: parsed.description,
-          visibility: "shared",
           sourceUrl: parsed.sourceUrl,
           ingredients: parsed.ingredients ?? [],
           steps: parsed.steps ?? [],
@@ -132,10 +177,29 @@ export const useKitchenStore = create<KitchenState>()(
         });
       },
 
-      setVisibility: (recipeId, visibility) =>
-        set((s) => ({
-          recipes: s.recipes.map((r) => (r.id === recipeId ? { ...r, visibility } : r)),
-        })),
+      setVisibility: async (recipeId) => {
+        // Site-wide cookbook: every recipe stays visible to everyone
+        const res = await fetch("/api/recipes", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: recipeId, patch: { visibility: "shared" } }),
+        });
+        const data = (await res.json()) as {
+          kitchen?: { categories: Category[]; recipes: Recipe[] };
+        };
+        if (data.kitchen) {
+          set({
+            categories: data.kitchen.categories,
+            recipes: data.kitchen.recipes.map((r) => ({ ...r, visibility: "shared" })),
+          });
+        } else {
+          set((s) => ({
+            recipes: s.recipes.map((r) =>
+              r.id === recipeId ? { ...r, visibility: "shared" } : r,
+            ),
+          }));
+        }
+      },
 
       addToPlan: (date, mealType, recipeId, servings) =>
         set((s) => ({
@@ -195,13 +259,18 @@ export const useKitchenStore = create<KitchenState>()(
 
       clearSearchHistory: () => set({ searchHistory: [] }),
 
-      visibleRecipes: () => {
-        const { user, recipes } = get();
-        if (!user) return recipes.filter((r) => r.visibility === "shared");
-        return recipes.filter((r) => r.visibility === "shared" || r.authorId === user.id);
-      },
+      visibleRecipes: () => get().recipes.filter((r) => r.visibility === "shared"),
     }),
-    { name: "oselya-kitchen-v2" },
+    {
+      name: "oselya-kitchen-v3",
+      partialize: (state) => ({
+        user: state.user,
+        favorites: state.favorites,
+        mealPlan: state.mealPlan,
+        shoppingList: state.shoppingList,
+        searchHistory: state.searchHistory,
+      }),
+    },
   ),
 );
 

@@ -1,0 +1,891 @@
+{
+  "categories": [
+    {
+      "id": "cat-soups",
+      "name": "Супи",
+      "slug": "soups"
+    },
+    {
+      "id": "cat-mains",
+      "name": "Основні страви",
+      "slug": "mains"
+    },
+    {
+      "id": "cat-bakery",
+      "name": "Випічка",
+      "slug": "bakery"
+    },
+    {
+      "id": "cat-drinks",
+      "name": "Напої",
+      "slug": "drinks"
+    },
+    {
+      "id": "cat-salads",
+      "name": "Салати",
+      "slug": "salads"
+    },
+    {
+      "id": "cat-desserts",
+      "name": "Десерти",
+      "slug": "desserts"
+    },
+    {
+      "id": "cat-breakfast",
+      "name": "Сніданки",
+      "slug": "breakfast"
+    },
+    {
+      "id": "sub-cold-drinks",
+      "name": "Прохолоджувальні",
+      "slug": "cold-drinks",
+      "parentId": "cat-drinks"
+    },
+    {
+      "id": "sub-hot-drinks",
+      "name": "Гарячі напої",
+      "slug": "hot-drinks",
+      "parentId": "cat-drinks"
+    },
+    {
+      "id": "sub-cocktails",
+      "name": "Коктейлі",
+      "slug": "cocktails",
+      "parentId": "cat-drinks"
+    }
+  ],
+  "recipes": [
+    {
+      "id": "r1",
+      "title": "Борщ український",
+      "description": "Класичний сімейний борщ з буряком, капустою та сметаною.",
+      "categoryId": "cat-soups",
+      "authorId": "user-olena",
+      "authorName": "Pidlypnyi",
+      "visibility": "shared",
+      "sourceUrl": "https://example.com/borsch",
+      "imageUrl": "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 90,
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "dietTags": [],
+      "cookMethods": [
+        "stovetop"
+      ],
+      "servings": 6,
+      "createdAt": "2026-07-01T10:00:00Z",
+      "ingredients": [
+        {
+          "name": "Буряк",
+          "amount": 300,
+          "unit": "г",
+          "aisle": "produce"
+        },
+        {
+          "name": "Капуста",
+          "amount": 250,
+          "unit": "г",
+          "aisle": "produce"
+        },
+        {
+          "name": "Картопля",
+          "amount": 400,
+          "unit": "г",
+          "aisle": "produce"
+        },
+        {
+          "name": "Морква",
+          "amount": 1,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Цибуля",
+          "amount": 1,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Яловичина",
+          "amount": 500,
+          "unit": "г",
+          "aisle": "meat"
+        },
+        {
+          "name": "Сметана",
+          "amount": 100,
+          "unit": "г",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Томатна паста",
+          "amount": 2,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Зваріть бульйон з яловичини протягом 1 години."
+        },
+        {
+          "order": 2,
+          "text": "Додайте нарізану картоплю та капусту."
+        },
+        {
+          "order": 3,
+          "text": "Обсмажте овочі з томатною пастою, додайте до супу."
+        },
+        {
+          "order": 4,
+          "text": "Варіть ще 20 хв. Подавайте зі сметаною."
+        }
+      ]
+    },
+    {
+      "id": "r2",
+      "title": "Курка з вершками та печерицями",
+      "description": "Ніжне філе в вершковому соусі — ідеально на вечерю.",
+      "categoryId": "cat-mains",
+      "authorId": "user-andriy",
+      "authorName": "Андрій Коваль",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 35,
+      "mealTypes": [
+        "dinner"
+      ],
+      "dietTags": [
+        "gluten-free"
+      ],
+      "cookMethods": [
+        "stovetop",
+        "oven"
+      ],
+      "servings": 4,
+      "createdAt": "2026-07-05T12:00:00Z",
+      "ingredients": [
+        {
+          "name": "Куряче філе",
+          "amount": 600,
+          "unit": "г",
+          "aisle": "meat"
+        },
+        {
+          "name": "Печериці",
+          "amount": 300,
+          "unit": "г",
+          "aisle": "produce"
+        },
+        {
+          "name": "Вершки",
+          "amount": 200,
+          "unit": "мл",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Цибуля",
+          "amount": 1,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Часник",
+          "amount": 2,
+          "unit": "зубч.",
+          "aisle": "produce"
+        },
+        {
+          "name": "Олія",
+          "amount": 2,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Наріжте філе та обсмажте до золотистої скоринки."
+        },
+        {
+          "order": 2,
+          "text": "Додайте цибулю та печериці."
+        },
+        {
+          "order": 3,
+          "text": "Влийте вершки, тушкуйте 10–12 хвилин."
+        }
+      ]
+    },
+    {
+      "id": "r3",
+      "title": "Сирники з родзинками",
+      "description": "Ніжні сирники на сніданок для всієї родини.",
+      "categoryId": "cat-breakfast",
+      "authorId": "user-sofia",
+      "authorName": "Софія Коваль",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1484723091739-30a097e8f929?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 25,
+      "mealTypes": [
+        "breakfast"
+      ],
+      "dietTags": [
+        "vegetarian"
+      ],
+      "cookMethods": [
+        "stovetop"
+      ],
+      "servings": 4,
+      "createdAt": "2026-07-08T08:00:00Z",
+      "ingredients": [
+        {
+          "name": "Творог",
+          "amount": 400,
+          "unit": "г",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Яйця",
+          "amount": 2,
+          "unit": "шт",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Борошно",
+          "amount": 80,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Цукор",
+          "amount": 40,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Родзинки",
+          "amount": 50,
+          "unit": "г",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Змішайте творог, яйця, цукор і борошно."
+        },
+        {
+          "order": 2,
+          "text": "Додайте родзинки, сформуйте сирники."
+        },
+        {
+          "order": 3,
+          "text": "Обсмажте на середньому вогні з обох боків."
+        }
+      ]
+    },
+    {
+      "id": "r4",
+      "title": "Грецький салат",
+      "description": "Свіжий салат з фетою, оливками та овочами.",
+      "categoryId": "cat-salads",
+      "authorId": "user-olena",
+      "authorName": "Pidlypnyi",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 15,
+      "mealTypes": [
+        "lunch",
+        "snack"
+      ],
+      "dietTags": [
+        "vegetarian",
+        "gluten-free"
+      ],
+      "cookMethods": [
+        "no-cook"
+      ],
+      "servings": 2,
+      "createdAt": "2026-07-10T14:00:00Z",
+      "ingredients": [
+        {
+          "name": "Помідори",
+          "amount": 3,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Огірок",
+          "amount": 1,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Фета",
+          "amount": 150,
+          "unit": "г",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Оливки",
+          "amount": 80,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Цибуля червона",
+          "amount": 0.5,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Оливкова олія",
+          "amount": 3,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Наріжте овочі великими шматочками."
+        },
+        {
+          "order": 2,
+          "text": "Додайте фету та оливки."
+        },
+        {
+          "order": 3,
+          "text": "Заправте олією, сіллю та орегано."
+        }
+      ]
+    },
+    {
+      "id": "r5",
+      "title": "Шоколадний брауні",
+      "description": "Вологий брауні з темним шоколадом.",
+      "categoryId": "cat-desserts",
+      "authorId": "user-sofia",
+      "authorName": "Софія Коваль",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 45,
+      "mealTypes": [
+        "snack"
+      ],
+      "dietTags": [
+        "vegetarian"
+      ],
+      "cookMethods": [
+        "oven"
+      ],
+      "servings": 8,
+      "createdAt": "2026-07-12T16:00:00Z",
+      "ingredients": [
+        {
+          "name": "Темний шоколад",
+          "amount": 200,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Вершкове масло",
+          "amount": 150,
+          "unit": "г",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Цукор",
+          "amount": 180,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Яйця",
+          "amount": 3,
+          "unit": "шт",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Борошно",
+          "amount": 100,
+          "unit": "г",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Розтопіть шоколад із маслом."
+        },
+        {
+          "order": 2,
+          "text": "Вмішайте цукор, яйця та борошно."
+        },
+        {
+          "order": 3,
+          "text": "Випікайте 25–30 хв при 175°C."
+        }
+      ]
+    },
+    {
+      "id": "r6",
+      "title": "Лимонад з м'ятою",
+      "description": "Освіжаючий домашній лимонад.",
+      "categoryId": "cat-drinks",
+      "subcategoryId": "sub-cold-drinks",
+      "authorId": "user-andriy",
+      "authorName": "Андрій Коваль",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1523677011783-c91d1bbe2fdc?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 10,
+      "mealTypes": [
+        "snack"
+      ],
+      "dietTags": [
+        "vegan",
+        "gluten-free",
+        "dairy-free"
+      ],
+      "cookMethods": [
+        "no-cook"
+      ],
+      "servings": 4,
+      "createdAt": "2026-07-14T11:00:00Z",
+      "ingredients": [
+        {
+          "name": "Лимони",
+          "amount": 4,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Цукор",
+          "amount": 80,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "М'ята",
+          "amount": 20,
+          "unit": "г",
+          "aisle": "produce"
+        },
+        {
+          "name": "Вода",
+          "amount": 1,
+          "unit": "л",
+          "aisle": "other"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Відіжміть сік лимонів."
+        },
+        {
+          "order": 2,
+          "text": "Розчиніть цукор у теплій воді."
+        },
+        {
+          "order": 3,
+          "text": "Змішайте, додайте м'яту та лід."
+        }
+      ]
+    },
+    {
+      "id": "r7",
+      "title": "Імбирний чай",
+      "description": "Гарячий чай з імбирем і медом.",
+      "categoryId": "cat-drinks",
+      "subcategoryId": "sub-hot-drinks",
+      "authorId": "user-olena",
+      "authorName": "Pidlypnyi",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 12,
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "dietTags": [
+        "vegetarian",
+        "gluten-free"
+      ],
+      "cookMethods": [
+        "stovetop"
+      ],
+      "servings": 2,
+      "createdAt": "2026-07-15T09:00:00Z",
+      "ingredients": [
+        {
+          "name": "Імбир",
+          "amount": 30,
+          "unit": "г",
+          "aisle": "produce"
+        },
+        {
+          "name": "Мед",
+          "amount": 2,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Лимон",
+          "amount": 0.5,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Вода",
+          "amount": 500,
+          "unit": "мл",
+          "aisle": "other"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Наріжте імбир і проваріть 8–10 хв."
+        },
+        {
+          "order": 2,
+          "text": "Додайте лимон і мед перед подачею."
+        }
+      ]
+    },
+    {
+      "id": "r8",
+      "title": "Банан-смузі",
+      "description": "Швидкий смузі на сніданок або перекус.",
+      "categoryId": "cat-drinks",
+      "subcategoryId": "sub-cocktails",
+      "authorId": "user-sofia",
+      "authorName": "Софія Коваль",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 5,
+      "mealTypes": [
+        "breakfast",
+        "snack"
+      ],
+      "dietTags": [
+        "vegetarian",
+        "gluten-free"
+      ],
+      "cookMethods": [
+        "no-cook"
+      ],
+      "servings": 1,
+      "createdAt": "2026-07-16T07:30:00Z",
+      "ingredients": [
+        {
+          "name": "Банан",
+          "amount": 1,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Молоко",
+          "amount": 200,
+          "unit": "мл",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Йогурт",
+          "amount": 100,
+          "unit": "г",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Мед",
+          "amount": 1,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Збийте всі інгредієнти в блендері до однорідності."
+        }
+      ]
+    },
+    {
+      "id": "r9",
+      "title": "Хліб на заквасці",
+      "description": "Домашній хліб з хрусткою скоринкою.",
+      "categoryId": "cat-bakery",
+      "authorId": "user-andriy",
+      "authorName": "Андрій Коваль",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 180,
+      "mealTypes": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "dietTags": [
+        "vegan",
+        "dairy-free"
+      ],
+      "cookMethods": [
+        "oven"
+      ],
+      "servings": 8,
+      "createdAt": "2026-07-18T06:00:00Z",
+      "ingredients": [
+        {
+          "name": "Борошно",
+          "amount": 500,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Закваска",
+          "amount": 100,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Вода",
+          "amount": 350,
+          "unit": "мл",
+          "aisle": "other"
+        },
+        {
+          "name": "Сіль",
+          "amount": 10,
+          "unit": "г",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Замісіть тісто і залиште на ферментацію."
+        },
+        {
+          "order": 2,
+          "text": "Сформуйте буханець, розігрійте духовку з казаном."
+        },
+        {
+          "order": 3,
+          "text": "Випікайте 40 хв під кришкою, 15 хв без."
+        }
+      ]
+    },
+    {
+      "id": "r10",
+      "title": "Овочеве рагу",
+      "description": "Сите рагу з сезонних овочів у мультиварці.",
+      "categoryId": "cat-mains",
+      "authorId": "user-olena",
+      "authorName": "Pidlypnyi",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 50,
+      "mealTypes": [
+        "lunch",
+        "dinner"
+      ],
+      "dietTags": [
+        "vegan",
+        "gluten-free",
+        "dairy-free"
+      ],
+      "cookMethods": [
+        "multicooker",
+        "stovetop"
+      ],
+      "servings": 4,
+      "createdAt": "2026-07-20T13:00:00Z",
+      "ingredients": [
+        {
+          "name": "Кабачок",
+          "amount": 1,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Баклажан",
+          "amount": 1,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Перець болгарський",
+          "amount": 2,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Помідори",
+          "amount": 3,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Цибуля",
+          "amount": 1,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Олія",
+          "amount": 2,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Наріжте всі овочі кубиками."
+        },
+        {
+          "order": 2,
+          "text": "Тушкуйте в мультиварці 40 хвилин."
+        }
+      ]
+    },
+    {
+      "id": "r11",
+      "title": "Паста карбонара",
+      "description": "Класична італійська паста з яйцем і беконом.",
+      "categoryId": "cat-mains",
+      "authorId": "user-andriy",
+      "authorName": "Андрій Коваль",
+      "visibility": "shared",
+      "sourceUrl": "https://example.com/carbonara",
+      "imageUrl": "https://images.unsplash.com/photo-1612874742237-6526221588e3?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 25,
+      "mealTypes": [
+        "dinner"
+      ],
+      "dietTags": [],
+      "cookMethods": [
+        "stovetop"
+      ],
+      "servings": 2,
+      "createdAt": "2026-07-22T19:00:00Z",
+      "ingredients": [
+        {
+          "name": "Спагеті",
+          "amount": 200,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Бекон",
+          "amount": 120,
+          "unit": "г",
+          "aisle": "meat"
+        },
+        {
+          "name": "Яйця",
+          "amount": 2,
+          "unit": "шт",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Пармезан",
+          "amount": 60,
+          "unit": "г",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Чорний перець",
+          "amount": 1,
+          "unit": "ч.л.",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Зваріть пасту al dente."
+        },
+        {
+          "order": 2,
+          "text": "Обсмажте бекон до хрусткості."
+        },
+        {
+          "order": 3,
+          "text": "Змішайте з яйцем і пармезаном поза вогнем."
+        }
+      ]
+    },
+    {
+      "id": "r12",
+      "title": "Омлет з овочами",
+      "description": "Швидкий сніданок за 15 хвилин.",
+      "categoryId": "cat-breakfast",
+      "authorId": "user-sofia",
+      "authorName": "Софія Коваль",
+      "visibility": "shared",
+      "imageUrl": "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 15,
+      "mealTypes": [
+        "breakfast"
+      ],
+      "dietTags": [
+        "vegetarian",
+        "gluten-free"
+      ],
+      "cookMethods": [
+        "stovetop"
+      ],
+      "servings": 2,
+      "createdAt": "2026-07-24T08:00:00Z",
+      "ingredients": [
+        {
+          "name": "Яйця",
+          "amount": 4,
+          "unit": "шт",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Перець болгарський",
+          "amount": 0.5,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Помідори",
+          "amount": 1,
+          "unit": "шт",
+          "aisle": "produce"
+        },
+        {
+          "name": "Сир",
+          "amount": 50,
+          "unit": "г",
+          "aisle": "dairy"
+        },
+        {
+          "name": "Олія",
+          "amount": 1,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Збийте яйця, додайте нарізані овочі."
+        },
+        {
+          "order": 2,
+          "text": "Смажте під кришкою 8–10 хвилин."
+        }
+      ]
+    }
+  ],
+  "updatedAt": "2026-07-31T12:46:26.063Z"
+}
