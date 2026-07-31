@@ -35,13 +35,23 @@ const STEP_HEADERS =
 const DESC_HEADERS = /^(опис|about|description|нотатки|notes)\b/i;
 
 function looksLikeIngredient(line: string): boolean {
-  if (line.length < 2 || line.length > 160) return false;
+  if (line.length < 2 || line.length > 120) return false;
   if (STEP_HEADERS.test(line) || ING_HEADERS.test(line) || DESC_HEADERS.test(line)) return false;
+  if (
+    /\b(click here|read more|newsletter|facebook|instagram|pinterest|subscribe|advertisement|related recipe)\b/i.test(
+      line,
+    )
+  ) {
+    return false;
+  }
+  const words = line.split(/\s+/).length;
+  if (words > 14 && /[.!?].*[a-zа-я]/i.test(line)) return false;
   return (
     /^\d/.test(line) ||
     /[—–-]/.test(line) ||
     /\d\s*(г|кг|мл|л|шт|ч\.?\s*л|ст\.?\s*л|cup|tsp|tbsp|oz|lb)\b/i.test(line) ||
-    /^[-•*]/.test(line)
+    /^[-•*]/.test(line) ||
+    (words <= 5 && !/[.!?]/.test(line))
   );
 }
 
