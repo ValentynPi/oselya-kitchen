@@ -201,7 +201,7 @@ export const useKitchenStore = create<KitchenState>()(
         return recipes.filter((r) => r.visibility === "shared" || r.authorId === user.id);
       },
     }),
-    { name: "oselya-kitchen" },
+    { name: "oselya-kitchen-v2" },
   ),
 );
 

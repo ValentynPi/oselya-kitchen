@@ -24,7 +24,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           Увійти з Google
         </button>
         <p className="mt-3 text-xs text-ink-soft">
-          Демо-режим: локальний профіль родини Коваль (готово до NextAuth).
+          Демо-режим: локальний профіль Pidlypnyi (готово до NextAuth).
         </p>
       </div>
     );
