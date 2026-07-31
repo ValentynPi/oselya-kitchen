@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { parseImportUrl } from "./ai";
+import { ensureCategory, maybeSplitCategory, parseImportUrl, suggestCategoryName } from "./ai";
 import { buildShoppingList } from "./kitchen";
 import { demoUser, initialCategories, initialRecipes } from "./seed";
 import type {
@@ -50,6 +50,31 @@ interface KitchenState {
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function mergeById<T extends { id: string }>(primary: T[], secondary: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const item of primary) map.set(item.id, item);
+  for (const item of secondary) {
+    if (!map.has(item.id)) map.set(item.id, item);
+  }
+  return [...map.values()];
+}
+
+function mergeRecipes(server: Recipe[], local: Recipe[]): Recipe[] {
+  const map = new Map<string, Recipe>();
+  for (const r of server) map.set(r.id, { ...r, visibility: "shared" });
+  for (const r of local) {
+    const existing = map.get(r.id);
+    if (!existing) {
+      map.set(r.id, { ...r, visibility: "shared" });
+      continue;
+    }
+    const localTs = Date.parse(r.createdAt) || 0;
+    const serverTs = Date.parse(existing.createdAt) || 0;
+    if (localTs > serverTs) map.set(r.id, { ...r, visibility: "shared" });
+  }
+  return [...map.values()];
 }
 
 export const useKitchenStore = create<KitchenState>()(
@@ -101,15 +126,41 @@ export const useKitchenStore = create<KitchenState>()(
             error?: string;
           };
           if (!res.ok) throw new Error(data.error || "Sync failed");
+
+          const local = get();
+          const recipes = mergeRecipes(data.recipes ?? [], local.recipes);
+          const categories = mergeById(data.categories ?? [], local.categories);
+
           set({
-            categories: data.categories ?? initialCategories,
-            recipes: (data.recipes ?? []).map((r) => ({ ...r, visibility: "shared" })),
+            categories,
+            recipes,
             syncStatus: "ready",
             syncError: null,
           });
+
+          // Push any local-only recipes up to the shared cookbook
+          const serverIds = new Set((data.recipes ?? []).map((r) => r.id));
+          const missing = recipes.filter((r) => !serverIds.has(r.id));
+          for (const recipe of missing) {
+            try {
+              await fetch("/api/recipes", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  recipe: {
+                    ...recipe,
+                    categoryName: categories.find((c) => c.id === recipe.categoryId)?.name,
+                  },
+                }),
+              });
+            } catch {
+              /* keep local; retry next sync */
+            }
+          }
         } catch (err) {
+          // Keep whatever is already in localStorage — do not wipe recipes
           set({
-            syncStatus: wasReady ? "ready" : "error",
+            syncStatus: wasReady || get().recipes.length > 0 ? "ready" : "error",
             syncError: err instanceof Error ? err.message : "Sync failed",
           });
         }
@@ -124,40 +175,75 @@ export const useKitchenStore = create<KitchenState>()(
 
       addRecipe: async (input) => {
         const user = get().user ?? demoUser;
-        const res = await fetch("/api/recipes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            recipe: {
-              ...input,
-              authorId: user.id,
-              authorName: user.name,
-              visibility: "shared",
-            },
-          }),
-        });
-        const data = (await res.json()) as {
-          recipe?: Recipe;
-          kitchen?: { categories: Category[]; recipes: Recipe[] };
-          error?: string;
+        const categoryName = input.categoryName ?? suggestCategoryName(input);
+        let categories = get().categories;
+        const ensured = ensureCategory(categories, categoryName);
+        categories = ensured.categories;
+
+        const localRecipe: Recipe = {
+          ...input,
+          id: uid("r"),
+          categoryId: ensured.categoryId,
+          authorId: user.id,
+          authorName: user.name,
+          visibility: "shared",
+          createdAt: new Date().toISOString(),
         };
-        if (!res.ok || !data.recipe) {
-          throw new Error(data.error || "Не вдалося зберегти рецепт");
-        }
 
-        if (data.kitchen) {
-          set({
-            categories: data.kitchen.categories,
-            recipes: data.kitchen.recipes.map((r) => ({ ...r, visibility: "shared" })),
-            syncStatus: "ready",
+        let recipes = [...get().recipes.filter((r) => r.id !== localRecipe.id), localRecipe];
+        const split = maybeSplitCategory(categories, recipes, ensured.categoryId);
+        categories = split.categories;
+        recipes = split.recipes;
+        const savedLocal = recipes.find((r) => r.id === localRecipe.id) ?? localRecipe;
+
+        // Save to browser immediately so refresh never loses the recipe
+        set({ categories, recipes, syncStatus: "ready" });
+
+        try {
+          const res = await fetch("/api/recipes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              recipe: {
+                ...savedLocal,
+                categoryName,
+              },
+            }),
           });
-        } else {
-          set((s) => ({
-            recipes: [...s.recipes.filter((r) => r.id !== data.recipe!.id), data.recipe!],
-          }));
-        }
+          const data = (await res.json()) as {
+            recipe?: Recipe;
+            kitchen?: { categories: Category[]; recipes: Recipe[] };
+            error?: string;
+          };
 
-        return data.recipe;
+          if (res.ok && data.kitchen) {
+            set({
+              categories: mergeById(data.kitchen.categories, get().categories),
+              recipes: mergeRecipes(data.kitchen.recipes, get().recipes),
+              syncStatus: "ready",
+              syncError: null,
+            });
+            return (
+              get().recipes.find((r) => r.id === savedLocal.id) ??
+              data.recipe ??
+              savedLocal
+            );
+          }
+
+          if (res.ok && data.recipe) {
+            set((s) => ({
+              recipes: mergeRecipes([data.recipe!], s.recipes),
+            }));
+            return data.recipe;
+          }
+
+          // Server failed — local copy already saved
+          set({ syncError: data.error || "Збережено лише на цьому пристрої" });
+          return savedLocal;
+        } catch {
+          set({ syncError: "Збережено на цьому пристрої (офлайн)" });
+          return savedLocal;
+        }
       },
 
       importFromUrl: async (url) => {
@@ -178,26 +264,28 @@ export const useKitchenStore = create<KitchenState>()(
       },
 
       setVisibility: async (recipeId) => {
-        // Site-wide cookbook: every recipe stays visible to everyone
-        const res = await fetch("/api/recipes", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: recipeId, patch: { visibility: "shared" } }),
-        });
-        const data = (await res.json()) as {
-          kitchen?: { categories: Category[]; recipes: Recipe[] };
-        };
-        if (data.kitchen) {
-          set({
-            categories: data.kitchen.categories,
-            recipes: data.kitchen.recipes.map((r) => ({ ...r, visibility: "shared" })),
+        set((s) => ({
+          recipes: s.recipes.map((r) =>
+            r.id === recipeId ? { ...r, visibility: "shared" } : r,
+          ),
+        }));
+        try {
+          const res = await fetch("/api/recipes", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: recipeId, patch: { visibility: "shared" } }),
           });
-        } else {
-          set((s) => ({
-            recipes: s.recipes.map((r) =>
-              r.id === recipeId ? { ...r, visibility: "shared" } : r,
-            ),
-          }));
+          const data = (await res.json()) as {
+            kitchen?: { categories: Category[]; recipes: Recipe[] };
+          };
+          if (data.kitchen) {
+            set({
+              categories: mergeById(data.kitchen.categories, get().categories),
+              recipes: mergeRecipes(data.kitchen.recipes, get().recipes),
+            });
+          }
+        } catch {
+          /* local already updated */
         }
       },
 
@@ -259,12 +347,14 @@ export const useKitchenStore = create<KitchenState>()(
 
       clearSearchHistory: () => set({ searchHistory: [] }),
 
-      visibleRecipes: () => get().recipes.filter((r) => r.visibility === "shared"),
+      visibleRecipes: () => get().recipes.filter((r) => r.visibility !== "private"),
     }),
     {
-      name: "oselya-kitchen-v3",
+      name: "oselya-kitchen-v4",
       partialize: (state) => ({
         user: state.user,
+        categories: state.categories,
+        recipes: state.recipes,
         favorites: state.favorites,
         mealPlan: state.mealPlan,
         shoppingList: state.shoppingList,
