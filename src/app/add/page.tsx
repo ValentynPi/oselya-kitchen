@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Link2, Loader2, PenLine, Plus, Trash2, Sparkles } from "lucide-react";
+import { ClipboardPaste, Link2, Loader2, PenLine, Plus, Trash2, Sparkles } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { suggestCategoryName } from "@/lib/ai";
 import { useKitchenStore } from "@/lib/store";
@@ -10,7 +10,7 @@ import type { Ingredient, MealType, RecipeStep, Visibility } from "@/lib/types";
 import { MEAL_LABELS, cn } from "@/lib/utils";
 import { Suspense } from "react";
 
-type Tab = "url" | "manual";
+type Tab = "url" | "text" | "manual";
 
 interface Draft {
   title: string;
@@ -48,6 +48,7 @@ function AddRecipeInner() {
 
   const [tab, setTab] = useState<Tab>("url");
   const [url, setUrl] = useState("");
+  const [pastedText, setPastedText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -61,6 +62,36 @@ function AddRecipeInner() {
       ingredients: draft.ingredients.filter((i) => i.name.trim()),
     });
   }, [draft]);
+
+  function applyExtracted(r: {
+    title: string;
+    description: string;
+    sourceUrl: string;
+    imageUrl?: string;
+    cookTimeMinutes: number;
+    servings: number;
+    ingredients: Ingredient[];
+    steps: RecipeStep[];
+    warnings: string[];
+  }) {
+    setDraft({
+      title: r.title,
+      description: r.description,
+      sourceUrl: r.sourceUrl,
+      imageUrl:
+        r.imageUrl ||
+        "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
+      cookTimeMinutes: r.cookTimeMinutes,
+      servings: r.servings,
+      visibility: "shared",
+      mealTypes: ["dinner"],
+      ingredients: r.ingredients.length
+        ? r.ingredients
+        : [{ name: "", amount: 1, unit: "г", aisle: "produce" }],
+      steps: r.steps.length ? r.steps : [{ order: 1, text: "" }],
+      warnings: r.warnings || [],
+    });
+  }
 
   async function extractFromUrl(link: string) {
     setError("");
@@ -97,27 +128,54 @@ function AddRecipeInner() {
         return;
       }
 
-      const r = data.recipe;
-      setDraft({
-        title: r.title,
-        description: r.description,
-        sourceUrl: r.sourceUrl,
-        imageUrl:
-          r.imageUrl ||
-          "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
-        cookTimeMinutes: r.cookTimeMinutes,
-        servings: r.servings,
-        visibility: "shared",
-        mealTypes: ["dinner"],
-        ingredients: r.ingredients.length
-          ? r.ingredients
-          : [{ name: "", amount: 1, unit: "г", aisle: "produce" }],
-        steps: r.steps.length ? r.steps : [{ order: 1, text: "" }],
-        warnings: r.warnings || [],
-      });
+      applyExtracted(data.recipe);
       setTab("url");
     } catch {
       setError("Мережева помилка під час імпорту");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function extractFromText() {
+    setError("");
+    const trimmed = pastedText.trim();
+    if (!trimmed) {
+      setError("Вставте текст рецепта");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/parse-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: trimmed }),
+      });
+      const data = (await res.json()) as {
+        recipe?: {
+          title: string;
+          description: string;
+          sourceUrl: string;
+          imageUrl?: string;
+          cookTimeMinutes: number;
+          servings: number;
+          ingredients: Ingredient[];
+          steps: RecipeStep[];
+          warnings: string[];
+        };
+        error?: string;
+      };
+
+      if (!res.ok || !data.recipe) {
+        setError(data.error || "Не вдалося розібрати текст");
+        return;
+      }
+
+      applyExtracted(data.recipe);
+      setTab("text");
+    } catch {
+      setError("Мережева помилка під час розбору тексту");
     } finally {
       setLoading(false);
     }
@@ -131,6 +189,10 @@ function AddRecipeInner() {
     if (mode === "manual") {
       setTab("manual");
       setDraft(emptyDraft());
+      return;
+    }
+    if (mode === "text") {
+      setTab("text");
       return;
     }
     if (presetUrl) {
@@ -193,11 +255,11 @@ function AddRecipeInner() {
         Додати рецепт
       </h1>
       <p className="mt-3 max-w-xl text-ink-soft">
-        Вставте посилання — Оселя витягне назву, інгредієнти, кроки й фото. Або створіть рецепт з
-        нуля для сімейної книги.
+        Вставте посилання, скопійований текст рецепта — або створіть картку з нуля. Усе потрапляє
+        в спільну книгу для всіх відвідувачів.
       </p>
 
-      <div className="mt-8 flex gap-2 rounded-xl bg-mist/80 p-1">
+      <div className="mt-8 flex flex-col gap-2 rounded-xl bg-mist/80 p-1 sm:flex-row">
         <button
           type="button"
           onClick={() => {
@@ -206,7 +268,7 @@ function AddRecipeInner() {
             setError("");
           }}
           className={cn(
-            "flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm transition",
+            "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm transition",
             tab === "url" ? "bg-leaf text-cream shadow-sm" : "text-ink-soft hover:text-ink",
           )}
         >
@@ -215,9 +277,24 @@ function AddRecipeInner() {
         </button>
         <button
           type="button"
+          onClick={() => {
+            setTab("text");
+            setDraft(null);
+            setError("");
+          }}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm transition",
+            tab === "text" ? "bg-leaf text-cream shadow-sm" : "text-ink-soft hover:text-ink",
+          )}
+        >
+          <ClipboardPaste className="size-4" />
+          З тексту
+        </button>
+        <button
+          type="button"
           onClick={startManual}
           className={cn(
-            "flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm transition",
+            "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm transition",
             tab === "manual" ? "bg-leaf text-cream shadow-sm" : "text-ink-soft hover:text-ink",
           )}
         >
@@ -262,15 +339,55 @@ function AddRecipeInner() {
             )}
           </button>
           <p className="mt-3 text-xs text-ink-soft">
-            Сайти з розміткою Recipe читаються автоматично. Для Instagram/Facebook посилання
-            зберігається — допишіть текст з допису в редакторі.
+            Сайти з розміткою Recipe читаються автоматично. Для Instagram/Facebook зручніше
+            скопіювати текст допису у вкладку «З тексту».
           </p>
         </section>
       )}
 
-      {loading && tab === "url" && !draft && (
+      {tab === "text" && !draft && (
+        <section className="mt-6 rounded-2xl bg-surface/85 p-5 ring-1 ring-line/70 sm:p-7">
+          <label className="block">
+            <span className="text-sm text-ink-soft">
+              Вставте рецепт з чату, нотаток, Instagram чи будь-якого тексту
+            </span>
+            <textarea
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+              rows={12}
+              placeholder={`Борщ український\n\nІнгредієнти:\nБуряк — 300 г\nКапуста — 250 г\n...\n\nПриготування:\n1. Зваріть бульйон.\n2. Додайте овочі.`}
+              className="mt-2 w-full rounded-xl border border-line bg-cream/60 px-4 py-3 text-sm outline-none focus:border-leaf"
+              autoFocus
+            />
+          </label>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => void extractFromText()}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber px-5 py-3 text-sm font-medium text-ink transition hover:bg-amber-soft disabled:opacity-60 sm:w-auto"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Розбираю текст…
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-4" />
+                Зробити рецепт з тексту
+              </>
+            )}
+          </button>
+          <p className="mt-3 text-xs text-ink-soft">
+            Краще працює, якщо в тексті є блоки «Інгредієнти» та «Приготування». Після розбору
+            можна все підправити.
+          </p>
+        </section>
+      )}
+
+      {loading && !draft && (
         <p className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
-          <Loader2 className="size-4 animate-spin" /> Шукаю рецепт на сторінці…
+          <Loader2 className="size-4 animate-spin" /> Обробляю…
         </p>
       )}
 
