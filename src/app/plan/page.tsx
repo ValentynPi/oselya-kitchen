@@ -7,7 +7,8 @@ import { uk } from "date-fns/locale";
 import { AuthGate } from "@/components/AuthGate";
 import { useKitchenStore } from "@/lib/store";
 import type { MealType } from "@/lib/types";
-import { MEAL_LABELS, formatAmount } from "@/lib/utils";
+import { MEAL_LABELS } from "@/lib/utils";
+import { formatIngredientDisplay } from "@/lib/ingredients";
 import { scaleIngredients } from "@/lib/kitchen";
 
 const MEALS: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
@@ -179,9 +180,9 @@ export default function PlanPage() {
             <div className="mt-4 rounded-xl bg-mist/60 p-3 text-sm">
               <p className="font-medium text-leaf-deep">Перерахунок інгредієнтів</p>
               <ul className="mt-2 columns-2 gap-4 text-ink-soft">
-                {preview.map((ing) => (
-                  <li key={ing.name}>
-                    {ing.name} — {formatAmount(ing.amount, ing.unit)}
+                {preview.map((ing, idx) => (
+                  <li key={`${ing.name}-${idx}`}>
+                    {formatIngredientDisplay(ing)}
                   </li>
                 ))}
               </ul>

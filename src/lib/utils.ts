@@ -21,7 +21,8 @@ export const METHOD_LABELS = {
 } as const;
 
 export function formatAmount(amount: number, unit: string): string {
-  const rounded = Number.isInteger(amount) ? amount.toString() : amount.toFixed(1).replace(/\.0$/, "");
+  const rounded = Number.isInteger(amount) ? amount.toString() : amount.toFixed(2).replace(/\.?0+$/, "");
+  if (!unit?.trim()) return amount === 1 ? "" : rounded;
   return `${rounded} ${unit}`;
 }
 

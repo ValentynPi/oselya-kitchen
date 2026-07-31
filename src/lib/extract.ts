@@ -1,5 +1,12 @@
 import recipeDataScraper from "recipe-data-scraper";
-import { guessAisle } from "@/lib/ai";
+import {
+  filterIngredientObjects,
+  hasQuantitySignal,
+  ingredientsFromTrustedLines,
+  isChromeIngredient,
+  looksMeasuredLine,
+  smartParseIngredient,
+} from "@/lib/ingredients";
 import type { Ingredient, RecipeStep } from "@/lib/types";
 
 export interface ExtractedRecipe {
@@ -46,6 +53,13 @@ function decodeEntities(input: string): string {
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&frac14;/gi, "¼")
+    .replace(/&frac12;/gi, "½")
+    .replace(/&frac34;/gi, "¾")
+    .replace(/&frac13;/gi, "⅓")
+    .replace(/&frac23;/gi, "⅔")
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
 }
@@ -78,32 +92,7 @@ function metaContent(html: string, key: string): string | undefined {
 }
 
 function parseIngredientLine(line: string): Ingredient {
-  const cleaned = stripHtml(line).replace(/^[-•*]\s*/, "").trim();
-  if (!cleaned) {
-    return { name: "Інгредієнт", amount: 1, unit: "шт", aisle: "other" };
-  }
-  const match = cleaned.match(/^([\d.,/½¼¾⅓⅔]+)\s*([a-zA-Zа-яА-Я.]+)?\s+(.+)$/);
-  if (match) {
-    return {
-      name: match[3].trim(),
-      amount: Number(match[1].replace(",", ".")) || 1,
-      unit: match[2] || "шт",
-      aisle: guessAisle(match[3]),
-    };
-  }
-  const dash = cleaned.split(/\s+[—–-]\s+/);
-  if (dash.length >= 2) {
-    const name = dash[0].trim();
-    const rest = dash.slice(1).join(" ").trim();
-    const m = rest.match(/^([\d.,]+)\s*(.*)$/);
-    return {
-      name,
-      amount: m ? Number(m[1].replace(",", ".")) || 1 : 1,
-      unit: m?.[2]?.trim() || "шт",
-      aisle: guessAisle(name),
-    };
-  }
-  return { name: cleaned, amount: 1, unit: "шт", aisle: guessAisle(cleaned) };
+  return smartParseIngredient(line);
 }
 
 function repairJson(raw: string): string {
@@ -207,11 +196,9 @@ function fromJsonLd(data: Record<string, unknown>, url: string, host: string): E
     imageUrl = String((imageRaw as { url: string }).url);
   }
 
-  const ingredients = asArray(data.recipeIngredient as string[] | string | undefined)
-    .map(String)
-    .map((s) => s.trim())
-    .filter((s) => looksLikeIngredient(s))
-    .map(parseIngredientLine);
+  const ingredients = ingredientsFromTrustedLines(
+    asArray(data.recipeIngredient as string[] | string | undefined).map(String),
+  );
 
   const servingsRaw = data.recipeYield ?? data.yield;
   let servings = 4;
@@ -253,11 +240,9 @@ function fromScraperResult(
   url: string,
   host: string,
 ): ExtractedRecipe {
-  const ingredients = asArray(raw.recipeIngredients as string[] | undefined)
-    .map(String)
-    .map((s) => s.trim())
-    .filter((s) => looksLikeIngredient(s))
-    .map(parseIngredientLine);
+  const ingredients = ingredientsFromTrustedLines(
+    asArray(raw.recipeIngredients as string[] | undefined).map(String),
+  );
   const steps = instructionsToSteps(raw.recipeInstructions);
   const image = raw.image;
   const imageUrl = Array.isArray(image)
@@ -293,183 +278,83 @@ function fromScraperResult(
   };
 }
 
+function isJunkLine(line: string): boolean {
+  return isChromeIngredient(line);
+}
+
 function isGarbageRecipe(recipe: ExtractedRecipe): boolean {
   const title = recipe.title.toLowerCase();
   if (/^title:\s*/i.test(recipe.title)) return true;
   if (/url source|markdown content|skip to (content|recipe)/i.test(title)) return true;
-
-  const badIng = recipe.ingredients.filter((i) => !looksLikeIngredient(i.name)).length;
-  if (
-    recipe.ingredients.length > 0 &&
-    badIng >= Math.max(1, Math.floor(recipe.ingredients.length * 0.4))
-  ) {
-    return true;
-  }
-
-  const badSteps = recipe.steps.filter((s) =>
-    /https?:\/\/|^\[[^\]]+\]\([^)]+\)$|url source|markdown content|jump to recipe/i.test(
-      s.text,
-    ),
-  ).length;
-  if (recipe.steps.length > 0 && badSteps >= Math.max(1, Math.floor(recipe.steps.length * 0.3))) {
-    return true;
-  }
-
   return false;
 }
 
-function isJunkLine(line: string): boolean {
-  const t = line.trim();
-  if (t.length < 2 || t.length > 400) return true;
-  if (/^https?:\/\//i.test(t)) return true;
-  if (/^\[[^\]]+\]\([^)]+\)$/.test(t)) return true;
-  if (
-    /^(url source|markdown content|title|published time|warning|skip to|jump to|save recipe|print|share|rate|advertisement|newsletter|subscribe|sign in|log in|cookie)\b/i.test(
-      t,
-    )
-  )
-    return true;
-  if (/all rights reserved|©|terms of (use|service)|privacy policy/i.test(t)) return true;
-  return false;
+function ingredientScore(recipe: ExtractedRecipe): number {
+  const withQty = recipe.ingredients.filter(hasQuantitySignal).length;
+  let score = withQty * 4 + Math.min(recipe.ingredients.length, 15);
+  if (recipe.ingredients.length >= 5 && withQty === 0) score -= 40;
+  return score;
 }
 
-/** True for real grocery/ingredient lines; false for website chrome and misc text. */
-function looksLikeIngredient(line: string): boolean {
-  const t = line
-    .replace(/^[-*•]\s*/, "")
-    .replace(/^\d+[.)]\s*/, "")
-    .replace(/\[[^\]]*\]\([^)]*\)/g, "")
-    .trim();
-
-  if (t.length < 2 || t.length > 120) return false;
-  if (isJunkLine(t)) return false;
-
-  // Section headers / site chrome leaking into the list
-  if (
-    /^(ingredients?|instructions?|directions?|method|steps?|preparation|nutrition|notes?|tips?|equipment|tools|related|comments?|reviews?|you may also|more recipes|servings?|prep time|cook time|total time|yield|calories|author|category|cuisine|keywords|інгредієнти|приготування|кроки|опис|порції|час)\b/i.test(
-      t,
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    /\b(click here|read more|see also|photo by|recipe by|sponsored|affiliate|newsletter|facebook|instagram|pinterest|twitter|tiktok|watch (the )?video|leave a comment|write a review|jump to|print recipe|save recipe|pin it|share on)\b/i.test(
-      t,
-    )
-  ) {
-    return false;
-  }
-
-  // Ratings / times / nutrition facts as standalone lines
-  if (/^\d+(\.\d+)?\s*(stars?|ratings?|reviews?|kcal|calories|мин|хв|min|minutes?|hours?|год)\b/i.test(t)) {
-    return false;
-  }
-  if (/^(prep|cook|total|active)\s*time\b/i.test(t)) return false;
-  if (/^\d+\s*(people|servings?|порц)/i.test(t) && !/[a-zа-я]/i.test(t.replace(/^\d+\s*(people|servings?|порц)\w*/i, ""))) {
-    return false;
-  }
-
-  // Pure markdown headings leftover
-  if (/^#{1,6}\s+/.test(t)) return false;
-
-  // Paragraph-like instructions (too sentence-y for an ingredient)
-  const words = t.split(/\s+/).length;
-  if (words > 14 && /[.!?].*[a-zа-я]/i.test(t)) return false;
-  if (words > 18) return false;
-
-  // Prefer lines that look like measured ingredients, or short food names
-  const hasMeasure =
-    /^[\d¼½¾⅓⅔⅛⅜⅝⅞./\-\s]+/.test(t) ||
-    /\d/.test(t) ||
-    /\b(g|kg|ml|l|oz|lb|lbs|cup|cups|tsp|tbsp|teaspoon|tablespoon|pinch|clove|cloves|slice|slices|can|cans|package|pack|шт|г|кг|мл|л|ч\.?\s*л|ст\.?\s*л|склянк|зубчик|пучок|дрібк)\b/i.test(
-      t,
-    );
-
-  const hasDashAmount = /\s+[—–-]\s*[\d¼½¾]/.test(t);
-
-  if (hasMeasure || hasDashAmount) return true;
-
-  // Short unmeasured items like "salt", "olive oil", "часник" — allow only if concise
-  if (words <= 5 && !/[.!?]/.test(t) && /[a-zа-яіїєґ]/i.test(t)) return true;
-
-  return false;
-}
-
-function filterIngredientLines(lines: string[]): string[] {
-  const out: string[] = [];
-  let consecutiveBad = 0;
-
-  for (const raw of lines) {
-    const line = raw
-      .replace(/^[-*•]\s*/, "")
-      .replace(/^\d+[.)]\s*/, "")
-      .replace(/\[[^\]]*\]\([^)]*\)/g, "")
-      .trim();
-    if (!line || /^#{1,6}/.test(line)) {
-      // Heading inside list usually means the ingredients block ended
-      if (out.length >= 2) break;
-      continue;
-    }
-    if (
-      /^(instructions?|directions?|method|steps?|preparation|nutrition|notes?|tips?|related|comments?|reviews?|you may also|приготування|кроки|спосіб)\b/i.test(
-        line,
-      )
-    ) {
-      break;
-    }
-    if (!looksLikeIngredient(line)) {
-      consecutiveBad += 1;
-      // After we already have a solid list, stop on noise
-      if (out.length >= 3 && consecutiveBad >= 2) break;
-      continue;
-    }
-    consecutiveBad = 0;
-    out.push(line);
-    if (out.length >= 40) break;
-  }
-
-  return out;
+function stepScore(recipe: ExtractedRecipe): number {
+  return recipe.steps.filter((s) => s.text.length > 20).length * 3;
 }
 
 function scoreRecipe(recipe: ExtractedRecipe): number {
   if (isGarbageRecipe(recipe)) return 0;
   let score = 0;
   if (recipe.title.length > 3 && !/^рецепт з /i.test(recipe.title)) score += 2;
-  const goodIngs = recipe.ingredients.filter((i) => looksLikeIngredient(i.name)).length;
-  score += Math.min(goodIngs, 12);
-  score += Math.min(recipe.steps.length, 10);
-  // Penalize noisy ingredient lists
-  score -= Math.max(0, recipe.ingredients.length - goodIngs) * 2;
-  if (goodIngs >= 3) score += 3;
-  if (recipe.steps.length >= 3) score += 3;
+  if (/\bvideo\b/i.test(recipe.title)) score -= 4;
+  score += ingredientScore(recipe);
+  score += stepScore(recipe);
+  if (recipe.ingredients.filter(hasQuantitySignal).length >= 3) score += 8;
+  if (recipe.steps.length >= 3) score += 4;
   return score;
 }
 
+function isObviouslyNotStep(line: string): boolean {
+  const t = stripHtml(line).replace(/^\d+[.)]\s*/, "").trim();
+  if (t.length < 8) return true;
+  if (t.length > 1200) return true;
+  if (/^https?:\/\//i.test(t)) return true;
+  if (
+    /^(save recipe|print|share|rate this|advertisement|newsletter|subscribe|related recipes?|you may also|comments?|reviews?|nutrition|інгредієнти)\b/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function sanitizeRecipe(recipe: ExtractedRecipe): ExtractedRecipe {
-  const title = recipe.title.replace(/^Title:\s*/i, "").trim();
-  const ingredientLines = filterIngredientLines(
-    recipe.ingredients.map((i) => i.name.replace(/^[-*•]\s*/, "").trim()),
-  );
-  const ingredients = ingredientLines.map(parseIngredientLine);
+  // Trusted lists already cleaned; still run a light pass for heuristic candidates
+  const trusted =
+    recipe.ingredients.length >= 3 &&
+    recipe.ingredients.filter(hasQuantitySignal).length >= Math.min(3, recipe.ingredients.length);
+  const ingredients = trusted
+    ? recipe.ingredients
+        .map((i) => ({ ...i, name: i.name.trim() }))
+        .filter((i) => i.name && !isChromeIngredient(i.name))
+    : filterIngredientObjects(recipe.ingredients);
 
   const steps = recipe.steps
     .map((s) => ({
       ...s,
-      text: s.text
+      text: stripHtml(s.text)
         .replace(/^\d+[.)]\s*/, "")
         .replace(/^\[([^\]]+)\]\([^)]+\)\s*/g, "$1 ")
         .trim(),
     }))
-    .filter((s) => s.text && !isJunkLine(s.text) && s.text.length > 3 && s.text.length < 500);
+    .filter((s) => s.text && !isObviouslyNotStep(s.text));
 
   return {
     ...recipe,
-    title: title || recipe.title,
+    title: recipe.title.replace(/^Title:\s*/i, "").trim() || recipe.title,
     ingredients:
       ingredients.length > 0
         ? ingredients
-        : [{ name: "Додайте інгредієнти", amount: 1, unit: "порція", aisle: "other" }],
+        : [{ name: "Додайте інгредієнти", amount: 1, unit: "", aisle: "other" }],
     steps:
       steps.length > 0
         ? steps.map((s, i) => ({ ...s, order: i + 1 }))
@@ -477,13 +362,37 @@ function sanitizeRecipe(recipe: ExtractedRecipe): ExtractedRecipe {
   };
 }
 
+/** Compose the strongest ingredients + steps across extractors. */
 function pickBest(candidates: ExtractedRecipe[]): ExtractedRecipe | null {
-  const ranked = candidates
+  const cleaned = candidates
     .map(sanitizeRecipe)
     .map((r) => ({ r, score: scoreRecipe(r) }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
-  return ranked[0]?.r ?? null;
+
+  if (!cleaned.length) return null;
+
+  const bestOverall = cleaned[0].r;
+  const bestIngredients = [...cleaned].sort(
+    (a, b) => ingredientScore(b.r) - ingredientScore(a.r),
+  )[0].r;
+  const bestSteps = [...cleaned].sort((a, b) => stepScore(b.r) - stepScore(a.r))[0].r;
+
+  const warnings = Array.from(
+    new Set([
+      ...bestOverall.warnings,
+      ...bestIngredients.warnings,
+      ...bestSteps.warnings,
+    ]),
+  );
+
+  return sanitizeRecipe({
+    ...bestOverall,
+    ingredients: bestIngredients.ingredients,
+    steps: bestSteps.steps,
+    imageUrl: bestOverall.imageUrl || bestIngredients.imageUrl || bestSteps.imageUrl,
+    warnings,
+  });
 }
 
 function heuristicExtract(html: string, url: string, host: string): ExtractedRecipe {
@@ -518,19 +427,19 @@ function heuristicExtract(html: string, url: string, host: string): ExtractedRec
       .map((m) => stripHtml(m[1]))
       .filter((t) => t.length > 1 && t.length < 300 && !isJunkLine(t));
 
-  let ingredients = filterIngredientLines(liFrom(ingredientBlocks)).map(parseIngredientLine);
+  let ingredients = filterIngredientObjects(liFrom(ingredientBlocks).map(parseIngredientLine));
   const steps = liFrom(stepBlocks)
-    .filter((t) => t.length > 3 && t.length < 400 && !looksLikeIngredient(t))
+    .filter((t) => t.length > 3 && t.length < 400 && !isChromeIngredient(t))
     .slice(0, 40)
     .map((text, i) => ({ order: i + 1, text }));
 
   // Only scan global <li> if we found nothing in ingredient-specific blocks —
-  // and still require looksLikeIngredient + stop on noise.
+  // and only keep lines that look measured (avoids nav menus).
   if (ingredients.length === 0) {
     const listBlocks = [...html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
       .map((m) => stripHtml(m[1]))
-      .filter((t) => t.length > 2 && t.length < 120);
-    ingredients = filterIngredientLines(listBlocks).slice(0, 25).map(parseIngredientLine);
+      .filter((t) => t.length > 2 && t.length < 120 && looksMeasuredLine(t));
+    ingredients = filterIngredientObjects(listBlocks.map(parseIngredientLine)).slice(0, 25);
   }
 
   return {
@@ -594,7 +503,7 @@ function parseReadableMarkdown(text: string, url: string, host: string): Extract
   let steps: RecipeStep[] = [];
 
   if (ingMatch) {
-    ingredients = filterIngredientLines(ingMatch[1].split("\n")).map(parseIngredientLine);
+    ingredients = filterIngredientObjects(ingMatch[1].split("\n").map(parseIngredientLine));
   }
 
   if (stepMatch) {
@@ -615,7 +524,7 @@ function parseReadableMarkdown(text: string, url: string, host: string): Extract
         /\n\s*(?:#{1,3}\s*)?(?:instructions?|directions?|method|steps?|preparation|приготування|кроки)\b/i,
       );
       const chunk = stop > 0 ? window.slice(0, stop) : window;
-      ingredients = filterIngredientLines(chunk.split("\n")).map(parseIngredientLine);
+      ingredients = filterIngredientObjects(chunk.split("\n").map(parseIngredientLine));
     }
   }
 
@@ -628,7 +537,7 @@ function parseReadableMarkdown(text: string, url: string, host: string): Extract
       const numbered = window
         .split("\n")
         .map((l) => l.replace(/^\d+[.)]\s+/, "").replace(/^[-*•]\s+/, "").trim())
-        .filter((l) => l.length > 15 && l.length < 400 && !isJunkLine(l) && !looksLikeIngredient(l))
+        .filter((l) => l.length > 15 && l.length < 400 && !isJunkLine(l))
         .slice(0, 25);
       if (numbered.length >= 2) {
         steps = numbered.map((text, i) => ({ order: i + 1, text }));

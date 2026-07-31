@@ -128,16 +128,38 @@ function redistribute(
 
 export function guessAisle(name: string): StoreAisle {
   const n = name.toLowerCase();
-  if (/м'ясо|куряч|яловиц|бекон|риба|фарш/.test(n)) return "meat";
-  if (/молоко|сир|сметан|йогурт|вершк|яйц|творог|фета|пармезан|масло/.test(n)) return "dairy";
-  if (/хліб|булоч|багет/.test(n)) return "bakery";
-  if (/заморож|лід/.test(n)) return "frozen";
-  if (/борошн|цукор|олія|сіль|паста|спагеті|мед|шоколад|томатн|оливк|перець|закваск/.test(n))
+  if (
+    /м'ясо|куряч|яловиц|бекон|риба|фарш|chicken|beef|pork|bacon|fish|salmon|turkey|sausage|lamb|meat/.test(
+      n,
+    )
+  ) {
+    return "meat";
+  }
+  if (
+    /молоко|сир|сметан|йогурт|вершк|яйц|творог|фета|пармезан|масло|milk|cheese|cream|yogurt|butter|egg|feta|parmesan/.test(
+      n,
+    )
+  ) {
+    return "dairy";
+  }
+  if (/хліб|булоч|багет|bread|bun|bagel|baguette/.test(n)) return "bakery";
+  if (/заморож|лід|frozen|ice cream/.test(n)) return "frozen";
+  if (
+    /борошн|цукор|олія|сіль|паста|спагеті|мед|шоколад|томатн|оливк|перець|закваск|flour|sugar|oil|salt|pasta|honey|chocolate|vanilla|cocoa|oat|almond|maple|syrup|spice|cinnamon|ginger|baking/.test(
+      n,
+    )
+  ) {
     return "pantry";
-  if (/вода/.test(n)) return "other";
-  if (/буряк|капуст|картопл|моркв|цибул|часник|помідор|огірок|перець|гриб|печериц|лимон|банан|імбир|м'ят|кабачок|баклажан|оливк|родзин/.test(n))
+  }
+  if (/вода|water/.test(n)) return "other";
+  if (
+    /буряк|капуст|картопл|моркв|цибул|часник|помідор|огірок|перець|гриб|печериц|лимон|банан|імбир|м'ят|кабачок|баклажан|оливк|родзин|onion|garlic|tomato|lemon|apple|berry|fruit|vegetable|spinach|lettuce|herb|parsley|basil|apricot|cherry|raisin|currant|cranberr/.test(
+      n,
+    )
+  ) {
     return "produce";
-  return "produce";
+  }
+  return "pantry";
 }
 
 export function parseImportUrl(url: string): Partial<Recipe> & { title: string; description: string } {

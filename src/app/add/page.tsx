@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ClipboardPaste, Link2, Loader2, PenLine, Plus, Trash2, Sparkles } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { suggestCategoryName } from "@/lib/ai";
+import { formatIngredientDisplay, smartParseIngredient } from "@/lib/ingredients";
 import { useKitchenStore } from "@/lib/store";
 import type { Ingredient, MealType, RecipeStep, Visibility } from "@/lib/types";
 import { MEAL_LABELS, cn } from "@/lib/utils";
@@ -528,50 +529,78 @@ function AddRecipeInner() {
               </button>
             </div>
             <div className="space-y-2">
+              <div className="grid grid-cols-[72px_72px_1fr_36px] gap-2 px-1 text-[11px] uppercase tracking-wide text-ink-soft">
+                <span>К-сть</span>
+                <span>Од.</span>
+                <span>Назва / повний рядок</span>
+                <span />
+              </div>
               {draft.ingredients.map((ing, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_72px_72px_36px] gap-2">
-                  <input
-                    value={ing.name}
-                    onChange={(e) => {
-                      const ingredients = [...draft.ingredients];
-                      ingredients[idx] = { ...ing, name: e.target.value };
-                      setDraft({ ...draft, ingredients });
-                    }}
-                    placeholder="Назва"
-                    className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
-                  />
-                  <input
-                    type="number"
-                    value={ing.amount}
-                    onChange={(e) => {
-                      const ingredients = [...draft.ingredients];
-                      ingredients[idx] = { ...ing, amount: Number(e.target.value) || 0 };
-                      setDraft({ ...draft, ingredients });
-                    }}
-                    className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
-                  />
-                  <input
-                    value={ing.unit}
-                    onChange={(e) => {
-                      const ingredients = [...draft.ingredients];
-                      ingredients[idx] = { ...ing, unit: e.target.value };
-                      setDraft({ ...draft, ingredients });
-                    }}
-                    className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
-                  />
-                  <button
-                    type="button"
-                    aria-label="Видалити"
-                    onClick={() =>
-                      setDraft({
-                        ...draft,
-                        ingredients: draft.ingredients.filter((_, i) => i !== idx),
-                      })
-                    }
-                    className="flex items-center justify-center rounded-xl text-ink-soft hover:text-amber"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+                <div key={idx} className="space-y-1">
+                  <div className="grid grid-cols-[72px_72px_1fr_36px] gap-2">
+                    <input
+                      type="number"
+                      step="any"
+                      value={ing.amount}
+                      onChange={(e) => {
+                        const ingredients = [...draft.ingredients];
+                        ingredients[idx] = { ...ing, amount: Number(e.target.value) || 0 };
+                        setDraft({ ...draft, ingredients });
+                      }}
+                      className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
+                    />
+                    <input
+                      value={ing.unit}
+                      onChange={(e) => {
+                        const ingredients = [...draft.ingredients];
+                        ingredients[idx] = { ...ing, unit: e.target.value };
+                        setDraft({ ...draft, ingredients });
+                      }}
+                      placeholder="г"
+                      className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
+                    />
+                    <input
+                      value={ing.name}
+                      onChange={(e) => {
+                        const ingredients = [...draft.ingredients];
+                        ingredients[idx] = { ...ing, name: e.target.value };
+                        setDraft({ ...draft, ingredients });
+                      }}
+                      onBlur={(e) => {
+                        const raw = e.target.value.trim();
+                        if (!raw) return;
+                        // Full recipe line pasted into name → split into amount/unit/name
+                        if (
+                          /^[\d¼½¾⅓⅔]/.test(raw) ||
+                          /\d+\s*(?:g|kg|ml|l|oz|cup|tsp|tbsp|г|кг|мл|л|ст\.?\s*л|ч\.?\s*л)\b/i.test(
+                            raw,
+                          )
+                        ) {
+                          const ingredients = [...draft.ingredients];
+                          ingredients[idx] = smartParseIngredient(raw);
+                          setDraft({ ...draft, ingredients });
+                        }
+                      }}
+                      placeholder="напр. 200 г борошна"
+                      className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Видалити"
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          ingredients: draft.ingredients.filter((_, i) => i !== idx),
+                        })
+                      }
+                      className="flex items-center justify-center rounded-xl text-ink-soft hover:text-amber"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                  {ing.name && (
+                    <p className="px-1 text-xs text-ink-soft">{formatIngredientDisplay(ing)}</p>
+                  )}
                 </div>
               ))}
             </div>

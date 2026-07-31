@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Heart, Clock } from "lucide-react";
 import type { Recipe } from "@/lib/types";
 import { useKitchenStore } from "@/lib/store";
-import { cn, formatAmount } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { formatIngredientDisplay } from "@/lib/ingredients";
 
 export function RecipeCard({ recipe, badge }: { recipe: Recipe; badge?: string }) {
   const favorites = useKitchenStore((s) => s.favorites);
@@ -70,13 +71,12 @@ export function IngredientList({
 }) {
   return (
     <ul className="space-y-2">
-      {ingredients.map((ing) => (
+      {ingredients.map((ing, idx) => (
         <li
-          key={`${ing.name}-${ing.unit}`}
-          className="flex items-baseline justify-between gap-4 border-b border-line/60 py-2 text-sm last:border-0"
+          key={`${ing.name}-${ing.unit}-${idx}`}
+          className="border-b border-line/60 py-2 text-sm last:border-0"
         >
-          <span>{ing.name}</span>
-          <span className="shrink-0 text-ink-soft">{formatAmount(ing.amount, ing.unit)}</span>
+          {formatIngredientDisplay(ing)}
         </li>
       ))}
     </ul>

@@ -1,31 +1,9 @@
-import { guessAisle } from "@/lib/ai";
+import { smartParseIngredient } from "@/lib/ingredients";
 import type { Ingredient, RecipeStep } from "@/lib/types";
 import type { ExtractedRecipe } from "@/lib/extract";
 
 function parseIngredientLine(line: string): Ingredient {
-  const cleaned = line.replace(/^[-•*–—]\s*/, "").replace(/^\d+[.)]\s*/, "").trim();
-  const match = cleaned.match(/^([\d.,/½¼¾⅓⅔]+)\s*([а-яА-Яa-zA-Z.]+)?\s+(.+)$/);
-  if (match) {
-    const amount = Number(match[1].replace(",", ".")) || 1;
-    const unit = match[2] || "шт";
-    const name = match[3].trim();
-    return { name, amount, unit, aisle: guessAisle(name) };
-  }
-
-  const dash = cleaned.split(/\s+[—–-]\s+/);
-  if (dash.length >= 2) {
-    const name = dash[0].trim();
-    const rest = dash.slice(1).join(" ").trim();
-    const m = rest.match(/^([\d.,]+)\s*(.*)$/);
-    return {
-      name,
-      amount: m ? Number(m[1].replace(",", ".")) || 1 : 1,
-      unit: m?.[2]?.trim() || "шт",
-      aisle: guessAisle(name),
-    };
-  }
-
-  return { name: cleaned || "Інгредієнт", amount: 1, unit: "шт", aisle: guessAisle(cleaned) };
+  return smartParseIngredient(line);
 }
 
 const ING_HEADERS =
