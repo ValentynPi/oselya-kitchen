@@ -301,29 +301,87 @@ function isGarbageRecipe(recipe: ExtractedRecipe): boolean {
       i.name,
     ),
   ).length;
-  if (badIng >= Math.max(1, Math.floor(recipe.ingredients.length * 0.3))) return true;
+  if (
+    recipe.ingredients.length > 0 &&
+    badIng >= Math.max(1, Math.floor(recipe.ingredients.length * 0.3))
+  ) {
+    return true;
+  }
 
   const badSteps = recipe.steps.filter((s) =>
-    /https?:\/\/|^\[[^\]]+\]\([^)]+\)|url source|markdown content|jump to recipe/i.test(s.text),
+    /https?:\/\/|^\[[^\]]+\]\([^)]+\)$|url source|markdown content|jump to recipe/i.test(
+      s.text,
+    ),
   ).length;
-  if (badSteps >= Math.max(1, Math.floor(recipe.steps.length * 0.3))) return true;
+  if (recipe.steps.length > 0 && badSteps >= Math.max(1, Math.floor(recipe.steps.length * 0.3))) {
+    return true;
+  }
 
-  const weakIngredients =
-    recipe.ingredients.length <= 1 &&
-    /додайте|див\.|джерело|порція/i.test(recipe.ingredients[0]?.name ?? "");
-  const weakSteps =
-    recipe.steps.length <= 1 &&
-    /джерело|вручну|доповніть|опишіть/i.test(recipe.steps[0]?.text ?? "");
-  return weakIngredients && weakSteps;
+  return false;
 }
 
-function isQualityRecipe(recipe: ExtractedRecipe): boolean {
-  return (
-    !isGarbageRecipe(recipe) &&
-    recipe.ingredients.length >= 2 &&
-    recipe.steps.length >= 2 &&
-    recipe.title.length > 2
-  );
+function isJunkLine(line: string): boolean {
+  const t = line.trim();
+  if (t.length < 2 || t.length > 400) return true;
+  if (/^https?:\/\//i.test(t)) return true;
+  if (/^\[[^\]]+\]\([^)]+\)$/.test(t)) return true;
+  if (
+    /^(url source|markdown content|title|published time|warning|skip to|jump to|save recipe|print|share|rate|advertisement|newsletter|subscribe|sign in|log in|cookie)\b/i.test(
+      t,
+    )
+  )
+    return true;
+  if (/all rights reserved|©|terms of (use|service)|privacy policy/i.test(t)) return true;
+  return false;
+}
+
+function scoreRecipe(recipe: ExtractedRecipe): number {
+  if (isGarbageRecipe(recipe)) return 0;
+  let score = 0;
+  if (recipe.title.length > 3 && !/^рецепт з /i.test(recipe.title)) score += 2;
+  score += Math.min(recipe.ingredients.length, 12);
+  score += Math.min(recipe.steps.length, 10);
+  if (recipe.ingredients.length >= 3) score += 3;
+  if (recipe.steps.length >= 3) score += 3;
+  return score;
+}
+
+function sanitizeRecipe(recipe: ExtractedRecipe): ExtractedRecipe {
+  const title = recipe.title.replace(/^Title:\s*/i, "").trim();
+  const ingredients = recipe.ingredients
+    .map((i) => ({ ...i, name: i.name.replace(/^[-*•]\s*/, "").trim() }))
+    .filter((i) => i.name && !isJunkLine(i.name));
+  const steps = recipe.steps
+    .map((s) => ({
+      ...s,
+      text: s.text
+        .replace(/^\d+[.)]\s*/, "")
+        .replace(/^\[([^\]]+)\]\([^)]+\)\s*/g, "$1 ")
+        .trim(),
+    }))
+    .filter((s) => s.text && !isJunkLine(s.text));
+
+  return {
+    ...recipe,
+    title: title || recipe.title,
+    ingredients:
+      ingredients.length > 0
+        ? ingredients
+        : [{ name: "Додайте інгредієнти", amount: 1, unit: "порція", aisle: "other" }],
+    steps:
+      steps.length > 0
+        ? steps.map((s, i) => ({ ...s, order: i + 1 }))
+        : [{ order: 1, text: "Доповніть кроки приготування." }],
+  };
+}
+
+function pickBest(candidates: ExtractedRecipe[]): ExtractedRecipe | null {
+  const ranked = candidates
+    .map(sanitizeRecipe)
+    .map((r) => ({ r, score: scoreRecipe(r) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.r ?? null;
 }
 
 function heuristicExtract(html: string, url: string, host: string): ExtractedRecipe {
@@ -356,7 +414,7 @@ function heuristicExtract(html: string, url: string, host: string): ExtractedRec
     blocks
       .flatMap((b) => [...b[1].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)])
       .map((m) => stripHtml(m[1]))
-      .filter((t) => t.length > 1 && t.length < 300);
+      .filter((t) => t.length > 1 && t.length < 300 && !isJunkLine(t));
 
   let ingredients = liFrom(ingredientBlocks).slice(0, 40).map(parseIngredientLine);
   const steps = liFrom(stepBlocks)
@@ -366,7 +424,7 @@ function heuristicExtract(html: string, url: string, host: string): ExtractedRec
   if (ingredients.length === 0) {
     const listBlocks = [...html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
       .map((m) => stripHtml(m[1]))
-      .filter((t) => t.length > 2 && t.length < 180);
+      .filter((t) => t.length > 2 && t.length < 180 && !isJunkLine(t));
     const ingredientLike = listBlocks.filter((t) =>
       /\d|г\b|кг|мл|л\b|шт|cup|tsp|tbsp|oz|lb|grams?/i.test(t),
     );
@@ -396,60 +454,112 @@ function heuristicExtract(html: string, url: string, host: string): ExtractedRec
   };
 }
 
-/** Parse Jina-style readable markdown into a recipe. */
+/** Parse Jina-style readable markdown into a recipe (best effort). */
 function parseReadableMarkdown(text: string, url: string, host: string): ExtractedRecipe | null {
-  const cleaned = text
-    .replace(/^Title:\s*/im, "")
+  const titleFromMeta = text.match(/^Title:\s*(.+)$/im)?.[1]?.trim();
+  let body = text
+    .replace(/^Title:.*$/im, "")
     .replace(/^URL Source:.*$/gim, "")
-    .replace(/^Markdown Content:\s*/im, "")
     .replace(/^Published Time:.*$/gim, "")
     .replace(/^Warning:.*$/gim, "")
+    .replace(/^Markdown Content:\s*/im, "")
     .trim();
 
-  // Prefer sections after "Ingredients" / "Instructions"
-  const ingMatch = cleaned.match(
-    /(?:^|\n)#{1,3}\s*ingredients?\b[^\n]*\n([\s\S]*?)(?=\n#{1,3}\s|\ninstructions?\b|\nmethod\b|\ndirections?\b|$)/i,
+  // Drop leading navigation / site chrome lines
+  const lines = body.split(/\r?\n/).map((l) => l.trim());
+  const startIdx = lines.findIndex(
+    (l) =>
+      l &&
+      !isJunkLine(l) &&
+      !/^\[[^\]]+\]\([^)]+\)/.test(l) &&
+      (l.startsWith("#") || l.length > 8),
   );
-  const stepMatch = cleaned.match(
-    /(?:^|\n)#{1,3}\s*(?:instructions?|directions?|method|steps?)\b[^\n]*\n([\s\S]*?)(?=\n#{1,3}\s|$)/i,
+  body = (startIdx >= 0 ? lines.slice(startIdx) : lines).join("\n");
+
+  const titleFromH1 = body.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const title = (titleFromMeta || titleFromH1 || `Рецепт з ${host}`)
+    .replace(/^Title:\s*/i, "")
+    .slice(0, 160);
+
+  const ingMatch = body.match(
+    /(?:^|\n)\s*(?:#{1,3}\s*)?(?:\*\*)?ingredients?(?:\*\*)?\s*:?\s*\n([\s\S]*?)(?=\n\s*(?:#{1,3}\s*)?(?:\*\*)?(?:instructions?|directions?|method|steps?|preparation|nutrition|notes|tips)(?:\*\*)?\b|$)/i,
+  );
+  const stepMatch = body.match(
+    /(?:^|\n)\s*(?:#{1,3}\s*)?(?:\*\*)?(?:instructions?|directions?|method|steps?|preparation)(?:\*\*)?\s*:?\s*\n([\s\S]*?)(?=\n\s*(?:#{1,3}\s*)?(?:\*\*)?(?:nutrition|notes|tips|ingredients?)\b|$)/i,
   );
 
-  if (ingMatch || stepMatch) {
-    const titleLine =
-      cleaned.split("\n").find((l) => l.trim() && !l.startsWith("#") && l.length < 120)?.trim() ||
-      `Рецепт з ${host}`;
-    const ingredients = (ingMatch?.[1] || "")
+  let ingredients: Ingredient[] = [];
+  let steps: RecipeStep[] = [];
+
+  if (ingMatch) {
+    ingredients = ingMatch[1]
       .split("\n")
-      .map((l) => l.replace(/^[-*•]\s*/, "").trim())
-      .filter((l) => l && !/^#{1,3}/.test(l))
+      .map((l) => l.replace(/^[-*•]\s*/, "").replace(/^\d+[.)]\s*/, "").trim())
+      .filter((l) => l && !/^#{1,3}/.test(l) && !isJunkLine(l))
       .map(parseIngredientLine);
-    const steps = (stepMatch?.[1] || "")
+  }
+
+  if (stepMatch) {
+    steps = stepMatch[1]
       .split("\n")
-      .map((l) => l.replace(/^\d+[.)]\s*/, "").replace(/^[-*•]\s*/, "").trim())
-      .filter((l) => l && !/^#{1,3}/.test(l) && l.length > 3)
+      .map((l) => l.replace(/^[-*•]\s*/, "").replace(/^\d+[.)]\s*/, "").trim())
+      .filter((l) => l && !/^#{1,3}/.test(l) && !isJunkLine(l) && l.length > 3)
       .map((text, i) => ({ order: i + 1, text }));
-
-    const recipe: ExtractedRecipe = {
-      title: titleLine.replace(/^#+\s*/, "").slice(0, 160),
-      description: `Імпортовано з ${host}`,
-      sourceUrl: url,
-      cookTimeMinutes: 30,
-      servings: 4,
-      ingredients,
-      steps,
-      host,
-      warnings: ["Отримано через читабельний перегляд — перевірте поля."],
-    };
-    return isQualityRecipe(recipe) ? recipe : null;
   }
 
-  try {
-    const parsed = parseRecipeFromText(cleaned);
-    const recipe: ExtractedRecipe = { ...parsed, sourceUrl: url, host };
-    return isQualityRecipe(recipe) ? recipe : null;
-  } catch {
-    return null;
+  // Fallback: bullet lines look like ingredients, numbered like steps
+  if (ingredients.length < 2) {
+    const bullets = body
+      .split("\n")
+      .map((l) => l.replace(/^[-*•]\s+/, "").trim())
+      .filter(
+        (l) =>
+          l &&
+          !isJunkLine(l) &&
+          (/\d/.test(l) || /cup|tsp|tbsp|oz|lb|g\b|ml\b|шт|ст\.|ч\./i.test(l)),
+      )
+      .slice(0, 30);
+    if (bullets.length >= 2) ingredients = bullets.map(parseIngredientLine);
   }
+
+  if (steps.length < 2) {
+    const numbered = body
+      .split("\n")
+      .map((l) => l.replace(/^\d+[.)]\s+/, "").trim())
+      .filter((l) => l.length > 20 && !isJunkLine(l))
+      .slice(0, 25);
+    if (numbered.length >= 2) {
+      steps = numbered.map((text, i) => ({ order: i + 1, text }));
+    }
+  }
+
+  if (ingredients.length < 2 && steps.length < 2) {
+    try {
+      const parsed = parseRecipeFromText(body);
+      ingredients = parsed.ingredients;
+      steps = parsed.steps;
+    } catch {
+      /* keep empty */
+    }
+  }
+
+  const recipe = sanitizeRecipe({
+    title,
+    description: `Імпортовано з ${host}`,
+    sourceUrl: url,
+    imageUrl:
+      "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
+    cookTimeMinutes: 30,
+    servings: 4,
+    ingredients,
+    steps,
+    host,
+    warnings: [
+      "Сайт обмежує прямий доступ — зібрано через альтернативний перегляд. Перевірте й підправте поля.",
+    ],
+  });
+
+  return scoreRecipe(recipe) > 0 ? recipe : null;
 }
 
 async function fetchHtml(url: string, userAgent?: string): Promise<string> {
@@ -492,11 +602,16 @@ async function fetchViaArchive(url: string): Promise<string | null> {
 async function fetchViaJina(url: string): Promise<string | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
     try {
       const res = await fetch(`https://r.jina.ai/${url}`, {
         signal: controller.signal,
-        headers: { Accept: "text/plain", "User-Agent": "OselyaRecipeBot/1.0" },
+        headers: {
+          Accept: "text/plain",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "X-Return-Format": "markdown",
+        },
       });
       if (!res.ok) return null;
       const text = await res.text();
@@ -509,46 +624,16 @@ async function fetchViaJina(url: string): Promise<string | null> {
   }
 }
 
-function socialStub(url: string, host: string): ExtractedRecipe {
-  return {
-    title: `Рецепт з ${host}`,
-    description:
-      "Цей сайт блокує авточитання. Скопіюйте текст рецепта і використайте вкладку «З тексту». Посилання збережено.",
-    sourceUrl: url,
-    imageUrl:
-      "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
-    cookTimeMinutes: 30,
-    servings: 4,
-    ingredients: [
-      { name: "Додайте інгредієнти з допису", amount: 1, unit: "порція", aisle: "other" },
-    ],
-    steps: [
-      { order: 1, text: "Відкрийте джерело." },
-      { order: 2, text: "Вставте текст у «Додати → З тексту» або заповніть поля вручну." },
-    ],
-    host,
-    warnings: ["Автоімпорт недоступний для цього посилання. Використайте «З тексту»."],
-  };
-}
-
 function extractFromHtml(html: string, url: string, host: string): ExtractedRecipe | null {
+  const candidates: ExtractedRecipe[] = [];
   const jsonLd = extractJsonLdRecipes(html);
   if (jsonLd[0]) {
     const recipe = fromJsonLd(jsonLd[0], url, host);
     if (!recipe.imageUrl) recipe.imageUrl = metaContent(html, "og:image");
-    if (isQualityRecipe(recipe)) return recipe;
-    const heur = heuristicExtract(html, url, host);
-    const merged: ExtractedRecipe = {
-      ...recipe,
-      ingredients: recipe.ingredients.length >= 2 ? recipe.ingredients : heur.ingredients,
-      steps: recipe.steps.length >= 2 ? recipe.steps : heur.steps,
-      imageUrl: recipe.imageUrl || heur.imageUrl,
-      warnings: ["Дані зібрано з розмітки сторінки — перевірте перед збереженням."],
-    };
-    if (isQualityRecipe(merged)) return merged;
+    candidates.push(recipe);
   }
-  const heur = heuristicExtract(html, url, host);
-  return isQualityRecipe(heur) ? heur : null;
+  candidates.push(heuristicExtract(html, url, host));
+  return pickBest(candidates);
 }
 
 export async function extractRecipeFromUrl(url: string): Promise<ExtractedRecipe> {
@@ -565,6 +650,7 @@ export async function extractRecipeFromUrl(url: string): Promise<ExtractedRecipe
   if (parsed.hostname === "m.facebook.com") parsed.hostname = "www.facebook.com";
   const host = parsed.hostname.replace(/^www\./, "");
   const finalUrl = parsed.toString();
+  const candidates: ExtractedRecipe[] = [];
 
   if (/instagram\.com|facebook\.com|fb\.com|fb\.watch|tiktok\.com|vm\.tiktok\.com/.test(host)) {
     const readable = await fetchViaJina(finalUrl);
@@ -572,19 +658,36 @@ export async function extractRecipeFromUrl(url: string): Promise<ExtractedRecipe
       const parsedMd = parseReadableMarkdown(readable, finalUrl, host);
       if (parsedMd) return parsedMd;
     }
-    return socialStub(finalUrl, host);
+    return {
+      title: `Рецепт з ${host}`,
+      description:
+        "Соцмережа обмежує авточитання. Скопіюйте текст допису у вкладку «З тексту». Посилання збережено.",
+      sourceUrl: finalUrl,
+      imageUrl:
+        "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
+      cookTimeMinutes: 30,
+      servings: 4,
+      ingredients: [
+        { name: "Додайте інгредієнти з допису", amount: 1, unit: "порція", aisle: "other" },
+      ],
+      steps: [
+        { order: 1, text: "Відкрийте джерело." },
+        { order: 2, text: "Вставте текст у «Додати → З тексту»." },
+      ],
+      host,
+      warnings: ["Для Instagram/Facebook надійніше вставити текст допису вручну."],
+    };
   }
 
-  // 1) Dedicated recipe schema scraper (works on many major food sites)
+  // 1) Schema scraper
   try {
     const scraped = (await recipeDataScraper(finalUrl)) as Record<string, unknown>;
-    const recipe = fromScraperResult(scraped, finalUrl, host);
-    if (isQualityRecipe(recipe)) return recipe;
+    candidates.push(fromScraperResult(scraped, finalUrl, host));
   } catch {
     /* continue */
   }
 
-  // 2) Direct HTML + JSON-LD / heuristics
+  // 2) Direct HTML
   for (const ua of [
     undefined,
     "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
@@ -592,52 +695,72 @@ export async function extractRecipeFromUrl(url: string): Promise<ExtractedRecipe
     try {
       const html = await fetchHtml(finalUrl, ua);
       const recipe = extractFromHtml(html, finalUrl, host);
-      if (recipe) return recipe;
+      if (recipe) candidates.push(recipe);
     } catch {
       /* next */
     }
   }
 
-  // 3) Wayback Machine snapshot (for bot-blocked sites)
+  const bestSoFar = pickBest(candidates);
+  if (bestSoFar && scoreRecipe(bestSoFar) >= 8) return bestSoFar;
+
+  // 3) Archive
   try {
     const archived = await fetchViaArchive(finalUrl);
     if (archived) {
       const recipe = extractFromHtml(archived, finalUrl, host);
       if (recipe) {
-        return {
+        candidates.push({
           ...recipe,
           warnings: [
             ...recipe.warnings,
             "Сторінку прочитано через архівний знімок — перевірте актуальність.",
           ],
-        };
+        });
       }
     }
   } catch {
     /* continue */
   }
 
-  // 4) Readable markdown proxy (only if it parses cleanly)
+  // 4) Readable proxy — always try; return best effort even if imperfect
   const readable = await fetchViaJina(finalUrl);
   if (readable) {
     const parsedMd = parseReadableMarkdown(readable, finalUrl, host);
-    if (parsedMd) return parsedMd;
+    if (parsedMd) candidates.push(parsedMd);
   }
 
+  const best = pickBest(candidates);
+  if (best) {
+    if (scoreRecipe(best) < 8) {
+      best.warnings = [
+        ...best.warnings,
+        "Імпорт частковий — перевірте інгредієнти та кроки перед збереженням.",
+      ];
+    }
+    return best;
+  }
+
+  // Last resort: at least keep title from reader / host and open the editor
+  const fallbackTitle =
+    readable?.match(/^Title:\s*(.+)$/im)?.[1]?.trim() ||
+    readable?.match(/^#\s+(.+)$/m)?.[1]?.trim() ||
+    `Рецепт з ${host}`;
+
   return {
-    title: `Рецепт з ${host}`,
+    title: fallbackTitle.replace(/^Title:\s*/i, "").slice(0, 160),
     description:
-      "Не вдалося коректно витягти рецепт із цього посилання. Скопіюйте текст зі сторінки та використайте вкладку «З тексту».",
+      "Автоімпорт отримав мало структурованих даних. Посилання збережено — доповніть інгредієнти та кроки (або вставте текст у «З тексту»).",
     sourceUrl: finalUrl,
     imageUrl:
       "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
     cookTimeMinutes: 30,
     servings: 4,
     ingredients: [{ name: "Додайте інгредієнти", amount: 1, unit: "порція", aisle: "other" }],
-    steps: [{ order: 1, text: "Вставте текст рецепта через «З тексту» або заповніть кроки вручну." }],
+    steps: [{ order: 1, text: "Доповніть кроки приготування." }],
     host,
     warnings: [
-      "Автоімпорт не зміг прочитати цю сторінку (сайт блокує ботів або немає структурованих даних). Найкращий спосіб — «З тексту».",
+      "Сторінка обмежує ботів, тож картка майже порожня. Найкраще: скопіювати рецепт у «З тексту».",
     ],
   };
 }
