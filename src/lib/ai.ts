@@ -153,7 +153,7 @@ export function guessAisle(name: string): StoreAisle {
   }
   if (/вода|water/.test(n)) return "other";
   if (
-    /буряк|капуст|картопл|моркв|цибул|часник|помідор|огірок|перець|гриб|печериц|лимон|банан|імбир|м'ят|кабачок|баклажан|оливк|родзин|onion|garlic|tomato|lemon|apple|berry|fruit|vegetable|spinach|lettuce|herb|parsley|basil|apricot|cherry|raisin|currant|cranberr/.test(
+    /буряк|капуст|картопл|моркв|цибул|часник|помідор|огірок|перець|гриб|печериц|лимон|банан|імбир|м'ят|кабачок|баклажан|оливк|родзин|кроп|петрушк|кінз|onion|garlic|tomato|lemon|apple|berry|fruit|vegetable|spinach|lettuce|herb|parsley|basil|dill|apricot|cherry|raisin|currant|cranberr/.test(
       n,
     )
   ) {

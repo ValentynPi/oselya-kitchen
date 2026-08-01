@@ -107,13 +107,21 @@ const UNIT_ALIASES: Record<string, string> = {
   "ст.л.": "ст.л.",
   "ст л": "ст.л.",
   "стл": "ст.л.",
+  зубч: "зубч.",
   "зубч.": "зубч.",
   зубок: "зубч.",
+  зубчик: "зубч.",
   зубчики: "зубч.",
+  пучок: "пучок",
+  пучка: "пучок",
+  пучки: "пучок",
+  пучків: "пучок",
+  щіпка: "щіпка",
+  щіпки: "щіпка",
 };
 
 const UNIT_RE =
-  "teaspoons?|tablespoons?|tsp|tbsp|grams?|kilograms?|millilit(?:er|re)s?|lit(?:er|re)s?|ounces?|pounds?|cups?|pinch(?:es)?|cloves?|slices?|cans?|packages?|packs?|bunch(?:es)?|sprigs?|lbs?|oz|kg|ml|g|gr|l|шт|штука|штуки|г|кг|мл|л|ч\\.?\\s*л\\.?|ст\\.?\\s*л\\.?|зубч(?:ик[аи]?)?";
+  "teaspoons?|tablespoons?|tsp|tbsp|grams?|kilograms?|millilit(?:er|re)s?|lit(?:er|re)s?|ounces?|pounds?|cups?|pinch(?:es)?|cloves?|slices?|cans?|packages?|packs?|bunch(?:es)?|sprigs?|lbs?|oz|kg|ml|g|gr|l|шт|штука|штуки|г|кг|мл|л|ч\\.?\\s*л\\.?|ст\\.?\\s*л\\.?|зубч\\.?(?:ик[аи]?)?|пучк(?:а|и|ів|ом)?|пучок|щіпк[аи]";
 
 const AMOUNT_RE =
   "(?:\\d+\\s*)?[¼½¾⅓⅔]|\\d+\\s+\\d+\\s*/\\s*\\d+|\\d+\\s*/\\s*\\d+|\\d+(?:[.,]\\d+)?(?:\\s*[-–—]\\s*\\d+(?:[.,]\\d+)?)?";
@@ -143,8 +151,16 @@ function countMeasureClauses(line: string): number {
  * - Keep the full original line when the text has multiple measures,
  *   ranges that are unclear, or odd compound phrasing — so the UI stays faithful
  */
+function finalizeName(name: string): string {
+  return name
+    .replace(/^[.\s]+/, "")
+    .replace(/[;,.]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function smartParseIngredient(raw: string): Ingredient {
-  const original = cleanIngredientText(raw);
+  const original = cleanIngredientText(raw).replace(/[;]+$/g, "").trim();
   if (!original) {
     return { name: "Інгредієнт", amount: 1, unit: "", aisle: "other" };
   }
@@ -174,7 +190,8 @@ export function smartParseIngredient(raw: string): Ingredient {
     const unit = normalizeUnit(withUnit[2]);
     const name = stripLeadingOf((withUnit[3] || "").trim());
     if (name) {
-      return { name, amount, unit, aisle: guessAisle(name) };
+      const cleanName = finalizeName(name);
+      return { name: cleanName, amount, unit, aisle: guessAisle(cleanName) };
     }
     // Unit-only leftover — keep original
     return { name: original, amount, unit, aisle: guessAisle(original) };
@@ -183,7 +200,7 @@ export function smartParseIngredient(raw: string): Ingredient {
   // Ukrainian / dash style: "Борошно — 250 г"
   const dash = original.split(/\s+[—–-]\s+/);
   if (dash.length >= 2) {
-    const name = dash[0].trim();
+    const name = finalizeName(dash[0]);
     const rest = dash.slice(1).join(" ").trim();
     const m = rest.match(new RegExp(`^(${AMOUNT_RE})\\s*(${UNIT_RE})?\\s*$`, "i"));
     if (m) {
@@ -199,37 +216,76 @@ export function smartParseIngredient(raw: string): Ingredient {
   // "a pinch of salt" / "щіпка солі"
   const pinch = original.match(/^(?:a\s+)?(pinch|щіпка)\s+(?:of\s+)?(.+)$/i);
   if (pinch) {
+    const name = finalizeName(pinch[2]);
     return {
-      name: pinch[2].trim(),
+      name,
       amount: 1,
       unit: /щіпка/i.test(pinch[1]) ? "щіпка" : "pinch",
-      aisle: guessAisle(pinch[2]),
+      aisle: guessAisle(name),
     };
   }
 
   // Counted items without unit: "3 large eggs", "2 цибулини"
-  const countName = original.match(new RegExp(`^(${AMOUNT_RE})\\s+(.+)$`));
-  if (countName && !/^\d/.test(countName[2])) {
-    const name = countName[2].trim();
-    // Avoid treating years / temperatures as counts
-    if (!/°|celsius|fahrenheit|degrees/i.test(name)) {
-      return {
-        name,
-        amount: parseAmount(countName[1].replace(/\s+/g, " ").trim()),
-        unit: "",
-        aisle: guessAisle(name),
-      };
+  // Do not treat news timestamps "12:49 Headline" as "12" + ":49 Headline"
+  if (!/^\d{1,2}:\d{2}\b/.test(original)) {
+    const countName = original.match(new RegExp(`^(${AMOUNT_RE})\\s+(.+)$`));
+    if (countName && !/^\d/.test(countName[2])) {
+      const name = finalizeName(countName[2]);
+      // Avoid treating years / temperatures as counts
+      if (!/°|celsius|fahrenheit|degrees/i.test(name)) {
+        return {
+          name,
+          amount: parseAmount(countName[1].replace(/\s+/g, " ").trim()),
+          unit: "",
+          aisle: guessAisle(name),
+        };
+      }
     }
   }
 
   // Unparsed — keep exact text so nothing is lost
-  return { name: original, amount: 1, unit: "", aisle: guessAisle(original) };
+  return { name: finalizeName(original), amount: 1, unit: "", aisle: guessAisle(original) };
+}
+
+/** News sidebars / related articles that follow recipes on media sites. */
+export function isNewsFeedLine(line: string): boolean {
+  const t = cleanIngredientText(line);
+  if (!t) return false;
+
+  // "12:49 Škoda Group оголосила…" — classic news ticker
+  if (/^\d{1,2}:\d{2}\b/.test(t)) return true;
+
+  // Section headers after the recipe body
+  if (
+    /^(новини|останні новини|інші новини|більше новин|схожі новини|читайте також|також читайте|вам також|рекомендуємо|топ новин|стрічка|головне сьогодні|популярне|більше за темою|related news|more news|latest news|breaking news|trending)\b/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+
+  // Long non-food headline without a culinary measure
+  const hasMeasure =
+    new RegExp(`(?:${AMOUNT_RE})\\s*(?:${UNIT_RE})(?=\\s|$|[^a-zA-Zа-яА-Яіїєґ])`, "i").test(t) ||
+    /[—–-]\s*\d/.test(t);
+  if (!hasMeasure && t.length >= 55) {
+    if (
+      /оголосила|оголосив|ребрендинг|пасажирськ|літак|ігор\s+\d{4}|розкрила|розкрив|президент|політик|військ|матч|чемпіонат|ребрендинг|масштабн|революційн|топ-\d+/i.test(
+        t,
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function isChromeIngredient(line: string): boolean {
   const t = cleanIngredientText(line);
   if (t.length < 2) return true;
   if (t.length > 240) return true;
+  if (isNewsFeedLine(t)) return true;
   if (/^https?:\/\//i.test(t)) return true;
   if (/^\[[^\]]+\]\([^)]+\)$/.test(t)) return true;
   if (
@@ -280,26 +336,34 @@ export function looksMeasuredLine(line: string): boolean {
   return false;
 }
 
-/** Trusted schema/scraper lines — keep almost everything edible. */
+function isRecipeEndMarker(line: string): boolean {
+  return /^(instructions?|directions?|method|steps?|nutrition|notes?|tips?|related|comments?|reviews?|приготування|кроки|новини|читайте також|також читайте)\b/i.test(
+    line,
+  );
+}
+
+/** Trusted schema/scraper lines — keep edible rows, stop at news feeds. */
 export function ingredientsFromTrustedLines(lines: string[]): Ingredient[] {
   const out: Ingredient[] = [];
   for (const line of lines) {
     const cleaned = cleanIngredientText(line);
-    if (!cleaned || isChromeIngredient(cleaned)) continue;
-    if (
-      /^(instructions?|directions?|method|steps?|nutrition|notes?|tips?|related|comments?|reviews?|приготування|кроки)\b/i.test(
-        cleaned,
-      )
-    ) {
+    if (!cleaned) continue;
+
+    // After real ingredients, news/sidebar content ends the list
+    if (out.length > 0 && (isNewsFeedLine(cleaned) || isRecipeEndMarker(cleaned))) {
       break;
     }
+
+    if (isNewsFeedLine(cleaned) || isChromeIngredient(cleaned)) continue;
+    if (isRecipeEndMarker(cleaned)) break;
+
     out.push(smartParseIngredient(cleaned));
     if (out.length >= 60) break;
   }
   return out;
 }
 
-/** Heuristic lists — stop after trailing chrome. */
+/** Heuristic lists — stop after trailing chrome / news. */
 export function filterIngredientObjects(items: Ingredient[]): Ingredient[] {
   const out: Ingredient[] = [];
   let consecutiveBad = 0;
@@ -310,16 +374,26 @@ export function filterIngredientObjects(items: Ingredient[]): Ingredient[] {
       .join(" ")
       .trim();
 
+    if (out.length > 0 && (isNewsFeedLine(item.name) || isNewsFeedLine(label))) {
+      break;
+    }
+
     if (isChromeIngredient(item.name) || isChromeIngredient(label)) {
       consecutiveBad += 1;
-      if (out.length >= 3 && consecutiveBad >= 2) break;
+      if (out.length >= 2 && consecutiveBad >= 1) break;
       continue;
     }
 
+    if (isRecipeEndMarker(item.name)) {
+      break;
+    }
+
+    // Unmeasured long lines after a solid list are usually site chrome
     if (
-      /^(instructions?|directions?|method|steps?|nutrition|notes?|tips?|related|comments?|reviews?|приготування|кроки)\b/i.test(
-        item.name,
-      )
+      out.length >= 3 &&
+      !hasQuantitySignal(item) &&
+      item.name.length > 70 &&
+      out.filter(hasQuantitySignal).length >= 2
     ) {
       break;
     }
@@ -327,7 +401,7 @@ export function filterIngredientObjects(items: Ingredient[]): Ingredient[] {
     consecutiveBad = 0;
     out.push({
       ...item,
-      name: cleanIngredientText(item.name),
+      name: finalizeName(cleanIngredientText(item.name)),
       aisle: item.aisle || guessAisle(item.name),
     });
     if (out.length >= 40) break;

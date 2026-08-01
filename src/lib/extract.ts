@@ -317,8 +317,9 @@ function isObviouslyNotStep(line: string): boolean {
   if (t.length < 8) return true;
   if (t.length > 1200) return true;
   if (/^https?:\/\//i.test(t)) return true;
+  if (/^\d{1,2}:\d{2}\b/.test(t)) return true;
   if (
-    /^(save recipe|print|share|rate this|advertisement|newsletter|subscribe|related recipes?|you may also|comments?|reviews?|nutrition|інгредієнти)\b/i.test(
+    /^(save recipe|print|share|rate this|advertisement|newsletter|subscribe|related recipes?|you may also|comments?|reviews?|nutrition|інгредієнти|новини|читайте також)\b/i.test(
       t,
     )
   ) {
@@ -328,15 +329,8 @@ function isObviouslyNotStep(line: string): boolean {
 }
 
 function sanitizeRecipe(recipe: ExtractedRecipe): ExtractedRecipe {
-  // Trusted lists already cleaned; still run a light pass for heuristic candidates
-  const trusted =
-    recipe.ingredients.length >= 3 &&
-    recipe.ingredients.filter(hasQuantitySignal).length >= Math.min(3, recipe.ingredients.length);
-  const ingredients = trusted
-    ? recipe.ingredients
-        .map((i) => ({ ...i, name: i.name.trim() }))
-        .filter((i) => i.name && !isChromeIngredient(i.name))
-    : filterIngredientObjects(recipe.ingredients);
+  // Always run stop-aware filter so news sidebars after a recipe are cut off
+  const ingredients = filterIngredientObjects(recipe.ingredients);
 
   const steps = recipe.steps
     .map((s) => ({
