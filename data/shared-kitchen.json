@@ -885,7 +885,108 @@
           "text": "Смажте під кришкою 8–10 хвилин."
         }
       ]
+    },
+    {
+      "title": "Будуть готові за 20 хвилин: хрусткі малосольні огірки в пакеті",
+      "description": "Огірки малосольні в пакеті готуються дуже швидко, а з'їдаються - ще швидше.",
+      "authorId": "user-olena",
+      "authorName": "Pidlypnyi",
+      "sourceUrl": "https://www.unian.ua/recipes/preservation-and-pickling/various-pickles/malosolni-ogirki-v-paketi-za-nich-abo-za-godinu-12710247.html",
+      "ingredients": [
+        {
+          "name": "огірків",
+          "amount": 0.5,
+          "unit": "кг",
+          "aisle": "pantry"
+        },
+        {
+          "name": "часнику",
+          "amount": 2,
+          "unit": "зубч.",
+          "aisle": "produce"
+        },
+        {
+          "name": "кропу",
+          "amount": 0.5,
+          "unit": "пучок",
+          "aisle": "produce"
+        },
+        {
+          "name": "солі",
+          "amount": 0.5,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "0, 5 ст. л. цукру (без гірки)",
+          "amount": 1,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "яблучного оцту",
+          "amount": 1,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        },
+        {
+          "name": "олії",
+          "amount": 2,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        },
+        {
+          "name": "огірків",
+          "amount": 0.5,
+          "unit": "кг",
+          "aisle": "pantry"
+        },
+        {
+          "name": "солі",
+          "amount": 0.5,
+          "unit": "ст.л.",
+          "aisle": "pantry"
+        },
+        {
+          "name": "цукру",
+          "amount": 0.5,
+          "unit": "ч.л.",
+          "aisle": "pantry"
+        },
+        {
+          "name": "часнику (або за смаком)",
+          "amount": 2,
+          "unit": "зубч.",
+          "aisle": "produce"
+        },
+        {
+          "name": "кропу",
+          "amount": 0.5,
+          "unit": "пучок",
+          "aisle": "produce"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Перевірте джерело й доповніть кроки вручну."
+        }
+      ],
+      "imageUrl": "https://images.unian.net/photos/2024_07/thumb_files/1000_545_1722154243-4787.jpg?1",
+      "cookTimeMinutes": 30,
+      "mealTypes": [
+        "dinner"
+      ],
+      "dietTags": [],
+      "cookMethods": [
+        "stovetop"
+      ],
+      "servings": 4,
+      "id": "r-87pbo65",
+      "categoryId": "cat-mains",
+      "visibility": "shared",
+      "createdAt": "2026-08-01T10:45:33.657Z"
     }
   ],
-  "updatedAt": "2026-07-31T12:46:26.063Z"
+  "updatedAt": "2026-08-01T10:45:33.657Z"
 }
