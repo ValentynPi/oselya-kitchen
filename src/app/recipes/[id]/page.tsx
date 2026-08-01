@@ -3,7 +3,8 @@
 import { use, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Heart, Clock, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ExternalLink, Heart, Clock, Users, Pencil, Trash2 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { IngredientList } from "@/components/RecipeCard";
 import { useKitchenStore } from "@/lib/store";
@@ -15,13 +16,16 @@ export default function RecipeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const recipes = useKitchenStore((s) => s.recipes);
   const categories = useKitchenStore((s) => s.categories);
   const favorites = useKitchenStore((s) => s.favorites);
   const toggleFavorite = useKitchenStore((s) => s.toggleFavorite);
   const addToPlan = useKitchenStore((s) => s.addToPlan);
+  const deleteRecipe = useKitchenStore((s) => s.deleteRecipe);
   const [mounted, setMounted] = useState(false);
   const [added, setAdded] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -102,6 +106,34 @@ export default function RecipeDetailPage({
             className="rounded-xl bg-leaf px-4 py-2 text-sm text-cream hover:bg-leaf-deep"
           >
             {added ? "Додано до меню" : "У план меню"}
+          </button>
+          <Link
+            href={`/recipes/${recipe.id}/edit`}
+            className="inline-flex items-center gap-2 rounded-xl bg-surface px-4 py-2 text-sm text-ink-soft ring-1 ring-line hover:text-leaf"
+          >
+            <Pencil className="size-4" />
+            Редагувати
+          </Link>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  `Видалити рецепт «${recipe.title}»? Цю дію не можна скасувати.`,
+                )
+              ) {
+                return;
+              }
+              setDeleting(true);
+              void deleteRecipe(recipe.id)
+                .then(() => router.push("/recipes"))
+                .catch(() => setDeleting(false));
+            }}
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm text-amber ring-1 ring-amber/40 hover:bg-amber-soft disabled:opacity-60"
+          >
+            <Trash2 className="size-4" />
+            {deleting ? "Видалення…" : "Видалити"}
           </button>
           <span className="rounded-xl bg-mist px-4 py-2 text-sm text-ink-soft">
             Бачать усі відвідувачі сайту

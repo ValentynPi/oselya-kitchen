@@ -36,6 +36,13 @@ interface KitchenState {
       visibility?: Visibility;
     },
   ) => Promise<Recipe>;
+  updateRecipe: (
+    id: string,
+    input: Partial<
+      Omit<Recipe, "id" | "createdAt" | "authorId" | "authorName" | "visibility" | "categoryId">
+    > & { categoryName?: string },
+  ) => Promise<Recipe>;
+  deleteRecipe: (id: string) => Promise<void>;
   importFromUrl: (url: string) => Promise<Recipe>;
   setVisibility: (recipeId: string, visibility: Visibility) => Promise<void>;
   addToPlan: (date: string, mealType: MealType, recipeId: string, servings: number) => void;
@@ -243,6 +250,135 @@ export const useKitchenStore = create<KitchenState>()(
         } catch {
           set({ syncError: "Збережено на цьому пристрої (офлайн)" });
           return savedLocal;
+        }
+      },
+
+      updateRecipe: async (id, input) => {
+        const existing = get().recipes.find((r) => r.id === id);
+        if (!existing) throw new Error("Рецепт не знайдено");
+
+        let categories = get().categories;
+        let categoryId = existing.categoryId;
+        const draft: Recipe = {
+          ...existing,
+          ...input,
+          id: existing.id,
+          createdAt: existing.createdAt,
+          authorId: existing.authorId,
+          authorName: existing.authorName,
+          visibility: "shared",
+          title: (input.title ?? existing.title).trim(),
+          description: input.description ?? existing.description,
+          ingredients: input.ingredients ?? existing.ingredients,
+          steps: input.steps ?? existing.steps,
+        };
+
+        if (input.categoryName || input.title || input.ingredients) {
+          const categoryName = input.categoryName ?? suggestCategoryName(draft);
+          const ensured = ensureCategory(categories, categoryName);
+          categories = ensured.categories;
+          categoryId = ensured.categoryId;
+        }
+
+        const nextLocal: Recipe = { ...draft, categoryId };
+        let recipes = get().recipes.map((r) => (r.id === id ? nextLocal : r));
+        const split = maybeSplitCategory(categories, recipes, categoryId);
+        categories = split.categories;
+        recipes = split.recipes;
+        set({ categories, recipes, syncStatus: "ready" });
+
+        const savedLocal = get().recipes.find((r) => r.id === id) ?? nextLocal;
+
+        try {
+          const res = await fetch("/api/recipes", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id,
+              patch: {
+                title: savedLocal.title,
+                description: savedLocal.description,
+                sourceUrl: savedLocal.sourceUrl,
+                ingredients: savedLocal.ingredients,
+                steps: savedLocal.steps,
+                imageUrl: savedLocal.imageUrl,
+                cookTimeMinutes: savedLocal.cookTimeMinutes,
+                mealTypes: savedLocal.mealTypes,
+                dietTags: savedLocal.dietTags,
+                cookMethods: savedLocal.cookMethods,
+                servings: savedLocal.servings,
+                categoryId: savedLocal.categoryId,
+                subcategoryId: savedLocal.subcategoryId,
+              },
+            }),
+          });
+          const data = (await res.json()) as {
+            recipe?: Recipe;
+            kitchen?: { categories: Category[]; recipes: Recipe[] };
+            error?: string;
+          };
+
+          if (res.ok && data.kitchen) {
+            set({
+              categories: mergeById(data.kitchen.categories, get().categories),
+              recipes: mergeRecipes(data.kitchen.recipes, get().recipes),
+              syncStatus: "ready",
+              syncError: null,
+            });
+            return get().recipes.find((r) => r.id === id) ?? data.recipe ?? savedLocal;
+          }
+
+          if (res.ok && data.recipe) {
+            set((s) => ({
+              recipes: mergeRecipes([data.recipe!], s.recipes),
+            }));
+            return data.recipe;
+          }
+
+          set({ syncError: data.error || "Збережено лише на цьому пристрої" });
+          return savedLocal;
+        } catch {
+          set({ syncError: "Збережено на цьому пристрої (офлайн)" });
+          return savedLocal;
+        }
+      },
+
+      deleteRecipe: async (id) => {
+        set((s) => ({
+          recipes: s.recipes.filter((r) => r.id !== id),
+          favorites: s.favorites.filter((fid) => fid !== id),
+          mealPlan: s.mealPlan.filter((m) => m.recipeId !== id),
+          syncStatus: "ready",
+        }));
+
+        try {
+          const res = await fetch("/api/recipes", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
+          const data = (await res.json()) as {
+            kitchen?: { categories: Category[]; recipes: Recipe[] };
+            error?: string;
+          };
+
+          if (res.ok && data.kitchen) {
+            set({
+              categories: mergeById(data.kitchen.categories, get().categories),
+              recipes: mergeRecipes(data.kitchen.recipes, get().recipes).filter(
+                (r) => r.id !== id,
+              ),
+              syncStatus: "ready",
+              syncError: null,
+            });
+            return;
+          }
+
+          if (!res.ok) {
+            set({ syncError: data.error || "Видалено лише на цьому пристрої" });
+          }
+        } catch {
+          set({ syncError: "Видалено на цьому пристрої (офлайн)" });
         }
       },
 

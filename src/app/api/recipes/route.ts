@@ -93,15 +93,66 @@ export async function PATCH(req: NextRequest) {
     }
 
     const kitchen = await getSharedKitchen();
-    const recipes = kitchen.recipes.map((r) =>
-      r.id === body.id
-        ? { ...r, ...body.patch, id: r.id, visibility: "shared" as const }
-        : r,
-    );
-    const next = await saveSharedKitchen({ ...kitchen, recipes });
-    return NextResponse.json({ kitchen: next });
+    const existing = kitchen.recipes.find((r) => r.id === body.id);
+    if (!existing) {
+      return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
+    }
+
+    const patch = body.patch ?? {};
+    let categories = kitchen.categories;
+    let categoryId = patch.categoryId ?? existing.categoryId;
+
+    const draft: Recipe = {
+      ...existing,
+      ...patch,
+      id: existing.id,
+      createdAt: existing.createdAt,
+      visibility: "shared",
+      title: (patch.title ?? existing.title).trim(),
+      categoryId,
+    };
+
+    if (patch.title || patch.description || patch.ingredients) {
+      const categoryName = suggestCategoryName(draft);
+      const ensured = ensureCategory(categories, categoryName);
+      categories = ensured.categories;
+      categoryId = ensured.categoryId;
+    }
+
+    const updated: Recipe = { ...draft, categoryId };
+    let recipes = kitchen.recipes.map((r) => (r.id === body.id ? updated : r));
+    const split = maybeSplitCategory(categories, recipes, categoryId);
+    categories = split.categories;
+    recipes = split.recipes;
+
+    const next = await saveSharedKitchen({ ...kitchen, categories, recipes });
+    return NextResponse.json({
+      recipe: next.recipes.find((r) => r.id === body.id) ?? updated,
+      kitchen: next,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to update recipe";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const body = (await req.json()) as { id?: string };
+    if (!body.id) {
+      return NextResponse.json({ error: "Recipe id is required" }, { status: 400 });
+    }
+
+    const kitchen = await getSharedKitchen();
+    if (!kitchen.recipes.some((r) => r.id === body.id)) {
+      return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
+    }
+
+    const recipes = kitchen.recipes.filter((r) => r.id !== body.id);
+    const next = await saveSharedKitchen({ ...kitchen, recipes });
+    return NextResponse.json({ kitchen: next, deletedId: body.id });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to delete recipe";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
