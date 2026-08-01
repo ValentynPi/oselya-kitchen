@@ -1,13 +1,170 @@
-import type { Category, Recipe, StoreAisle } from "./types";
+import type { Category, MealType, Recipe, StoreAisle } from "./types";
 
-const KEYWORD_MAP: { category: string; keywords: string[] }[] = [
-  { category: "Супи", keywords: ["суп", "борщ", "бульйон", "крем-суп", "юшка"] },
-  { category: "Випічка", keywords: ["хліб", "булоч", "пиріг", "тісто", "закваск", "кекс"] },
-  { category: "Десерти", keywords: ["торт", "брауні", "печив", "шоколад", "морозив", "десерт"] },
-  { category: "Напої", keywords: ["чай", "кава", "лимонад", "смузі", "коктейл", "сік", "напій"] },
-  { category: "Салати", keywords: ["салат", "вінегрет"] },
-  { category: "Сніданки", keywords: ["омлет", "сирник", "каша", "млинц", "сніданок", "тості"] },
-  { category: "Основні страви", keywords: ["курка", "м'ясо", "паста", "рагу", "стейк", "риба", "плов"] },
+const KEYWORD_MAP: { category: string; keywords: string[]; weight?: number }[] = [
+  {
+    category: "Супи",
+    keywords: [
+      "суп",
+      "борщ",
+      "бульйон",
+      "крем-суп",
+      "юшка",
+      "soup",
+      "broth",
+      "chowder",
+      "gazpacho",
+      "ramen",
+      "pho",
+      "stew",
+      "рагу-суп",
+    ],
+  },
+  {
+    category: "Випічка",
+    keywords: [
+      "хліб",
+      "булоч",
+      "пиріг",
+      "тісто",
+      "закваск",
+      "кекс",
+      "паска",
+      "багет",
+      "bread",
+      "dough",
+      "sourdough",
+      "bun",
+      "bagel",
+      "focaccia",
+      "muffin",
+      "scone",
+      "pie crust",
+      "pastry",
+    ],
+  },
+  {
+    category: "Десерти",
+    keywords: [
+      "торт",
+      "брауні",
+      "печив",
+      "шоколад",
+      "морозив",
+      "десерт",
+      "тістечко",
+      "цукерк",
+      "пудинг",
+      "чизкейк",
+      "dessert",
+      "cake",
+      "brownie",
+      "cookie",
+      "cookies",
+      "ice cream",
+      "pudding",
+      "cheesecake",
+      "tiramisu",
+      "pancake dessert",
+      "sweet",
+      "granola",
+      "fudge",
+      "cupcake",
+      "tart",
+    ],
+  },
+  {
+    category: "Напої",
+    keywords: [
+      "чай",
+      "кава",
+      "лимонад",
+      "смузі",
+      "коктейл",
+      "сік",
+      "напій",
+      "компот",
+      "узвар",
+      "tea",
+      "coffee",
+      "lemonade",
+      "smoothie",
+      "cocktail",
+      "juice",
+      "drink",
+      "latte",
+      "espresso",
+      "mocha",
+      "cocoa",
+      "какао",
+    ],
+  },
+  {
+    category: "Салати",
+    keywords: [
+      "салат",
+      "вінегрет",
+      "salad",
+      "coleslaw",
+      "vinaigrette",
+      "цезар",
+      "caesar",
+      "greek salad",
+    ],
+  },
+  {
+    category: "Сніданки",
+    keywords: [
+      "омлет",
+      "сирник",
+      "каша",
+      "млинц",
+      "сніданок",
+      "тості",
+      "яєчн",
+      "oatmeal",
+      "omelet",
+      "omelette",
+      "pancake",
+      "pancakes",
+      "waffle",
+      "breakfast",
+      "porridge",
+      "granola bowl",
+      "toast",
+      "scrambled",
+      "french toast",
+    ],
+  },
+  {
+    category: "Основні страви",
+    keywords: [
+      "курка",
+      "м'ясо",
+      "паста",
+      "рагу",
+      "стейк",
+      "риба",
+      "плов",
+      "котлет",
+      "запіканк",
+      "гуляш",
+      "chicken",
+      "beef",
+      "pork",
+      "pasta",
+      "steak",
+      "fish",
+      "salmon",
+      "dinner",
+      "casserole",
+      "risotto",
+      "lasagna",
+      "curry",
+      "stir fry",
+      "roast",
+      "grill",
+    ],
+  },
 ];
 
 const DRINK_SUBS: { name: string; keywords: string[] }[] = [
@@ -23,21 +180,61 @@ function slugify(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export function suggestCategoryName(recipe: Pick<Recipe, "title" | "description" | "ingredients">): string {
-  const haystack = [
-    recipe.title,
+type Suggestable = Pick<Recipe, "title" | "description" | "ingredients"> & {
+  mealTypes?: MealType[];
+  cookTimeMinutes?: number;
+  steps?: { text: string }[];
+};
+
+/** Auto-picks the best category group from title, description, ingredients and meal type. */
+export function suggestCategoryName(recipe: Suggestable): string {
+  const title = (recipe.title || "").toLowerCase();
+  const body = [
     recipe.description,
-    ...recipe.ingredients.map((i) => i.name),
+    ...(recipe.ingredients ?? []).map((i) => i.name),
+    ...(recipe.steps ?? []).slice(0, 3).map((s) => s.text),
   ]
     .join(" ")
     .toLowerCase();
+  const haystack = `${title} ${body}`;
+
+  const scores = new Map<string, number>();
 
   for (const entry of KEYWORD_MAP) {
-    if (entry.keywords.some((k) => haystack.includes(k))) {
-      return entry.category;
+    let score = 0;
+    for (const keyword of entry.keywords) {
+      if (!haystack.includes(keyword)) continue;
+      // Title hits matter most — that's usually the dish type
+      if (title.includes(keyword)) score += 5;
+      else score += 1;
+    }
+    if (score > 0) scores.set(entry.category, (scores.get(entry.category) || 0) + score);
+  }
+
+  const meals = recipe.mealTypes ?? [];
+  if (meals.includes("breakfast")) {
+    scores.set("Сніданки", (scores.get("Сніданки") || 0) + 3);
+  }
+  if (meals.includes("snack") && (scores.get("Десерти") || 0) > 0) {
+    scores.set("Десерти", (scores.get("Десерти") || 0) + 1);
+  }
+
+  // Prefer bakery over dessert when dough/bread signals dominate sweets
+  const bakery = scores.get("Випічка") || 0;
+  const dessert = scores.get("Десерти") || 0;
+  if (bakery > 0 && dessert > 0 && bakery >= dessert && /хліб|bread|закваск|sourdough|тісто|dough/.test(haystack)) {
+    scores.set("Випічка", bakery + 2);
+  }
+
+  let best = "Основні страви";
+  let bestScore = 0;
+  for (const [name, score] of scores) {
+    if (score > bestScore) {
+      best = name;
+      bestScore = score;
     }
   }
-  return "Основні страви";
+  return best;
 }
 
 export function ensureCategory(

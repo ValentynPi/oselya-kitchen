@@ -61,6 +61,9 @@ function AddRecipeInner() {
       title: draft.title,
       description: draft.description,
       ingredients: draft.ingredients.filter((i) => i.name.trim()),
+      mealTypes: draft.mealTypes,
+      cookTimeMinutes: draft.cookTimeMinutes,
+      steps: draft.steps.filter((s) => s.text.trim()),
     });
   }, [draft]);
 
@@ -230,6 +233,7 @@ function AddRecipeInner() {
 
     try {
       setError("");
+      const mealTypes: MealType[] = draft.mealTypes.length ? draft.mealTypes : ["dinner"];
       const recipe = await addRecipe({
         title: draft.title.trim(),
         description: draft.description.trim() || "Сімейний рецепт",
@@ -238,10 +242,18 @@ function AddRecipeInner() {
         steps,
         imageUrl: draft.imageUrl,
         cookTimeMinutes: draft.cookTimeMinutes,
-        mealTypes: draft.mealTypes.length ? draft.mealTypes : ["dinner"],
+        mealTypes,
         dietTags: [],
         cookMethods: ["stovetop"],
         servings: draft.servings,
+        categoryName: suggestCategoryName({
+          title: draft.title.trim(),
+          description: draft.description.trim(),
+          ingredients,
+          mealTypes,
+          cookTimeMinutes: draft.cookTimeMinutes,
+          steps,
+        }),
       });
       router.push(`/recipes/${recipe.id}`);
     } catch (err) {
@@ -403,10 +415,10 @@ function AddRecipeInner() {
           )}
 
           {predictedCategory && (
-            <p className="text-sm text-ink-soft">
-              ШІ-категорія після збереження:{" "}
+            <div className="rounded-xl bg-mist/80 px-4 py-3 text-sm text-ink-soft">
+              Група обирається автоматично:{" "}
               <span className="font-medium text-leaf">{predictedCategory}</span>
-            </p>
+            </div>
           )}
 
           {/* eslint-disable-next-line @next/next/no-img-element */}

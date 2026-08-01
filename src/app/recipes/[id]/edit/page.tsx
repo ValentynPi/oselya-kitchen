@@ -1,10 +1,11 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
+import { suggestCategoryName } from "@/lib/ai";
 import { formatIngredientDisplay, smartParseIngredient } from "@/lib/ingredients";
 import { useKitchenStore } from "@/lib/store";
 import type { Ingredient, MealType, RecipeStep } from "@/lib/types";
@@ -36,6 +37,21 @@ export default function EditRecipePage({
   useEffect(() => setMounted(true), []);
 
   const recipe = mounted ? recipes.find((r) => r.id === id) : undefined;
+
+  const predictedCategory = useMemo(
+    () =>
+      title.trim()
+        ? suggestCategoryName({
+            title,
+            description,
+            ingredients: ingredients.filter((i) => i.name.trim()),
+            mealTypes,
+            cookTimeMinutes,
+            steps: steps.filter((s) => s.text.trim()),
+          })
+        : null,
+    [title, description, ingredients, mealTypes, cookTimeMinutes, steps],
+  );
 
   useEffect(() => {
     if (!recipe) return;
@@ -97,6 +113,15 @@ export default function EditRecipePage({
     setSaving(true);
     setError("");
     try {
+      const nextMeals: MealType[] = mealTypes.length ? mealTypes : ["dinner"];
+      const categoryName = suggestCategoryName({
+        title: title.trim(),
+        description: description.trim(),
+        ingredients: nextIngredients,
+        mealTypes: nextMeals,
+        cookTimeMinutes,
+        steps: nextSteps,
+      });
       await updateRecipe(id, {
         title: title.trim(),
         description: description.trim() || "Сімейний рецепт",
@@ -104,9 +129,10 @@ export default function EditRecipePage({
         imageUrl,
         cookTimeMinutes,
         servings,
-        mealTypes: mealTypes.length ? mealTypes : ["dinner"],
+        mealTypes: nextMeals,
         ingredients: nextIngredients,
         steps: nextSteps,
+        categoryName,
       });
       router.push(`/recipes/${id}`);
     } catch (err) {
@@ -143,6 +169,13 @@ export default function EditRecipePage({
           Редагувати рецепт
         </h1>
         <p className="mt-2 text-ink-soft">Змініть будь-які поля й збережіть — або видаліть картку.</p>
+
+        {predictedCategory && (
+          <div className="mt-4 rounded-xl bg-mist/80 px-4 py-3 text-sm text-ink-soft">
+            Група обирається автоматично:{" "}
+            <span className="font-medium text-leaf">{predictedCategory}</span>
+          </div>
+        )}
 
         <div className="mt-8 space-y-6">
           <label className="block">

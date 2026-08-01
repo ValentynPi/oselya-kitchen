@@ -182,7 +182,16 @@ export const useKitchenStore = create<KitchenState>()(
 
       addRecipe: async (input) => {
         const user = get().user ?? demoUser;
-        const categoryName = input.categoryName ?? suggestCategoryName(input);
+        const categoryName =
+          input.categoryName ??
+          suggestCategoryName({
+            title: input.title,
+            description: input.description,
+            ingredients: input.ingredients,
+            mealTypes: input.mealTypes,
+            cookTimeMinutes: input.cookTimeMinutes,
+            steps: input.steps,
+          });
         let categories = get().categories;
         const ensured = ensureCategory(categories, categoryName);
         categories = ensured.categories;
@@ -258,7 +267,6 @@ export const useKitchenStore = create<KitchenState>()(
         if (!existing) throw new Error("Рецепт не знайдено");
 
         let categories = get().categories;
-        let categoryId = existing.categoryId;
         const draft: Recipe = {
           ...existing,
           ...input,
@@ -273,14 +281,27 @@ export const useKitchenStore = create<KitchenState>()(
           steps: input.steps ?? existing.steps,
         };
 
-        if (input.categoryName || input.title || input.ingredients) {
-          const categoryName = input.categoryName ?? suggestCategoryName(draft);
-          const ensured = ensureCategory(categories, categoryName);
-          categories = ensured.categories;
-          categoryId = ensured.categoryId;
-        }
-
-        const nextLocal: Recipe = { ...draft, categoryId };
+        // Always re-pick the group from the latest recipe content
+        const categoryName =
+          input.categoryName ??
+          suggestCategoryName({
+            title: draft.title,
+            description: draft.description,
+            ingredients: draft.ingredients,
+            mealTypes: draft.mealTypes,
+            cookTimeMinutes: draft.cookTimeMinutes,
+            steps: draft.steps,
+          });
+        const ensured = ensureCategory(categories, categoryName);
+        categories = ensured.categories;
+        const categoryId = ensured.categoryId;
+        // Clear subcategory when parent group changes so it can be reassigned later
+        const nextLocal: Recipe = {
+          ...draft,
+          categoryId,
+          subcategoryId:
+            existing.categoryId === categoryId ? existing.subcategoryId : undefined,
+        };
         let recipes = get().recipes.map((r) => (r.id === id ? nextLocal : r));
         const split = maybeSplitCategory(categories, recipes, categoryId);
         categories = split.categories;

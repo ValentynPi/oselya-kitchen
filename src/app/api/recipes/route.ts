@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
         title: body.recipe.title,
         description: body.recipe.description ?? "",
         ingredients: body.recipe.ingredients ?? [],
+        mealTypes: body.recipe.mealTypes,
+        cookTimeMinutes: body.recipe.cookTimeMinutes,
+        steps: body.recipe.steps,
       });
 
     const ensured = ensureCategory(categories, categoryName);
@@ -112,14 +115,24 @@ export async function PATCH(req: NextRequest) {
       categoryId,
     };
 
-    if (patch.title || patch.description || patch.ingredients) {
-      const categoryName = suggestCategoryName(draft);
-      const ensured = ensureCategory(categories, categoryName);
-      categories = ensured.categories;
-      categoryId = ensured.categoryId;
-    }
+    const categoryName = suggestCategoryName({
+      title: draft.title,
+      description: draft.description,
+      ingredients: draft.ingredients,
+      mealTypes: draft.mealTypes,
+      cookTimeMinutes: draft.cookTimeMinutes,
+      steps: draft.steps,
+    });
+    const ensured = ensureCategory(categories, categoryName);
+    categories = ensured.categories;
+    categoryId = ensured.categoryId;
 
-    const updated: Recipe = { ...draft, categoryId };
+    const updated: Recipe = {
+      ...draft,
+      categoryId,
+      subcategoryId:
+        existing.categoryId === categoryId ? existing.subcategoryId : undefined,
+    };
     let recipes = kitchen.recipes.map((r) => (r.id === body.id ? updated : r));
     const split = maybeSplitCategory(categories, recipes, categoryId);
     categories = split.categories;
