@@ -986,7 +986,65 @@
       "categoryId": "cat-mains",
       "visibility": "shared",
       "createdAt": "2026-08-01T10:45:33.657Z"
+    },
+    {
+      "title": "Квас",
+      "description": "Квас з цикорію",
+      "authorId": "user-olena",
+      "authorName": "Pidlypnyi",
+      "ingredients": [
+        {
+          "name": "води",
+          "amount": 3,
+          "unit": "л",
+          "aisle": "pantry"
+        },
+        {
+          "name": "цекорію",
+          "amount": 0.5,
+          "unit": "ст",
+          "aisle": "pantry"
+        },
+        {
+          "name": "сахару",
+          "amount": 1,
+          "unit": "ст",
+          "aisle": "pantry"
+        },
+        {
+          "name": "лимонної кислоти",
+          "amount": 1,
+          "unit": "ч.л.",
+          "aisle": "produce"
+        },
+        {
+          "name": "сухих дріжжів",
+          "amount": 1,
+          "unit": "ч.л.",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "В гарячій воді змішати цикорій і цукор, додати до основної води, додати лимонну кислоту і дріжжі. Перемішати, процідити через марлю, розлити по пляшках і на 3г в холодильник"
+        }
+      ],
+      "imageUrl": "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 30,
+      "mealTypes": [
+        "dinner"
+      ],
+      "dietTags": [],
+      "cookMethods": [
+        "stovetop"
+      ],
+      "servings": 3,
+      "id": "r-yhgpy0g",
+      "categoryId": "cat-mains",
+      "visibility": "shared",
+      "createdAt": "2026-08-01T13:37:10.126Z"
     }
   ],
-  "updatedAt": "2026-08-01T13:35:08.020Z"
+  "updatedAt": "2026-08-01T13:37:10.126Z"
 }
