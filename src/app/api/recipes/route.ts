@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       recipe?: Omit<Recipe, "id" | "createdAt" | "categoryId" | "visibility"> & {
         id?: string;
         categoryName?: string;
+        subcategoryName?: string;
       };
     };
 
@@ -46,10 +47,17 @@ export async function POST(req: NextRequest) {
     const ensured = ensureCategory(categories, categoryName);
     categories = ensured.categories;
 
+    let subcategoryId = body.recipe.subcategoryId;
+    if (body.recipe.subcategoryName) {
+      const sub = ensureCategory(categories, body.recipe.subcategoryName, ensured.categoryId);
+      categories = sub.categories;
+      subcategoryId = sub.categoryId;
+    }
+
     const recipe: Recipe = {
       title: body.recipe.title.trim(),
       description: body.recipe.description ?? "",
-      subcategoryId: body.recipe.subcategoryId,
+      subcategoryId,
       authorId: body.recipe.authorId,
       authorName: body.recipe.authorName,
       sourceUrl: body.recipe.sourceUrl,

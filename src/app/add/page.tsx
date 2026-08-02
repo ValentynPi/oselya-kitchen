@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ClipboardPaste, Link2, Loader2, PenLine, Plus, Trash2, Sparkles } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
-import { suggestCategoryName } from "@/lib/ai";
+import { DRINK_SUBGROUPS, RECIPE_GROUPS, suggestCategoryName } from "@/lib/ai";
 import { formatIngredientDisplay, smartParseIngredient } from "@/lib/ingredients";
 import { useKitchenStore } from "@/lib/store";
 import type { Ingredient, MealType, RecipeStep, Visibility } from "@/lib/types";
@@ -25,6 +25,9 @@ interface Draft {
   ingredients: Ingredient[];
   steps: RecipeStep[];
   warnings: string[];
+  /** null = auto-pick from content */
+  categoryName: string | null;
+  drinkSubgroup: string | null;
 }
 
 const emptyDraft = (): Draft => ({
@@ -40,6 +43,8 @@ const emptyDraft = (): Draft => ({
   ingredients: [{ name: "", amount: 1, unit: "г", aisle: "produce" }],
   steps: [{ order: 1, text: "" }],
   warnings: [],
+  categoryName: null,
+  drinkSubgroup: null,
 });
 
 function AddRecipeInner() {
@@ -94,6 +99,8 @@ function AddRecipeInner() {
         : [{ name: "", amount: 1, unit: "г", aisle: "produce" }],
       steps: r.steps.length ? r.steps : [{ order: 1, text: "" }],
       warnings: r.warnings || [],
+      categoryName: null,
+      drinkSubgroup: null,
     });
   }
 
@@ -234,6 +241,16 @@ function AddRecipeInner() {
     try {
       setError("");
       const mealTypes: MealType[] = draft.mealTypes.length ? draft.mealTypes : ["dinner"];
+      const categoryName =
+        draft.categoryName ??
+        suggestCategoryName({
+          title: draft.title.trim(),
+          description: draft.description.trim(),
+          ingredients,
+          mealTypes,
+          cookTimeMinutes: draft.cookTimeMinutes,
+          steps,
+        });
       const recipe = await addRecipe({
         title: draft.title.trim(),
         description: draft.description.trim() || "Сімейний рецепт",
@@ -246,14 +263,9 @@ function AddRecipeInner() {
         dietTags: [],
         cookMethods: ["stovetop"],
         servings: draft.servings,
-        categoryName: suggestCategoryName({
-          title: draft.title.trim(),
-          description: draft.description.trim(),
-          ingredients,
-          mealTypes,
-          cookTimeMinutes: draft.cookTimeMinutes,
-          steps,
-        }),
+        categoryName,
+        subcategoryName:
+          categoryName === "Напої" ? draft.drinkSubgroup ?? undefined : undefined,
       });
       router.push(`/recipes/${recipe.id}`);
     } catch (err) {
@@ -414,12 +426,90 @@ function AddRecipeInner() {
             </div>
           )}
 
-          {predictedCategory && (
-            <div className="rounded-xl bg-mist/80 px-4 py-3 text-sm text-ink-soft">
-              Група обирається автоматично:{" "}
-              <span className="font-medium text-leaf">{predictedCategory}</span>
+          <div className="rounded-xl bg-mist/80 px-4 py-3">
+            <p className="text-sm text-ink-soft">
+              Група:{" "}
+              <span className="font-medium text-leaf">
+                {draft.categoryName ?? `Авто · ${predictedCategory ?? "…"}`}
+              </span>
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setDraft({ ...draft, categoryName: null, drinkSubgroup: null })
+                }
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs",
+                  draft.categoryName === null
+                    ? "bg-leaf text-cream"
+                    : "bg-surface text-ink-soft ring-1 ring-line",
+                )}
+              >
+                Авто
+              </button>
+              {RECIPE_GROUPS.map((group) => (
+                <button
+                  key={group}
+                  type="button"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      categoryName: group,
+                      drinkSubgroup: group === "Напої" ? draft.drinkSubgroup : null,
+                    })
+                  }
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs",
+                    draft.categoryName === group
+                      ? "bg-leaf text-cream"
+                      : "bg-surface text-ink-soft ring-1 ring-line",
+                  )}
+                >
+                  {group}
+                </button>
+              ))}
             </div>
-          )}
+            {(draft.categoryName === "Напої" ||
+              (!draft.categoryName && predictedCategory === "Напої")) && (
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-line/50 pt-3">
+                <span className="w-full text-xs text-ink-soft">Підгрупа напоїв</span>
+                <button
+                  type="button"
+                  onClick={() => setDraft({ ...draft, drinkSubgroup: null })}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs",
+                    draft.drinkSubgroup === null
+                      ? "bg-leaf text-cream"
+                      : "bg-surface text-ink-soft ring-1 ring-line",
+                  )}
+                >
+                  Без підгрупи
+                </button>
+                {DRINK_SUBGROUPS.map((sub) => (
+                  <button
+                    key={sub}
+                    type="button"
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        categoryName: draft.categoryName ?? "Напої",
+                        drinkSubgroup: sub,
+                      })
+                    }
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-xs",
+                      draft.drinkSubgroup === sub
+                        ? "bg-leaf text-cream"
+                        : "bg-surface text-ink-soft ring-1 ring-line",
+                    )}
+                  >
+                    {sub}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

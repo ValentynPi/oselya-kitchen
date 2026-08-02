@@ -33,6 +33,7 @@ interface KitchenState {
   addRecipe: (
     input: Omit<Recipe, "id" | "createdAt" | "categoryId" | "authorId" | "authorName" | "visibility"> & {
       categoryName?: string;
+      subcategoryName?: string;
       visibility?: Visibility;
     },
   ) => Promise<Recipe>;
@@ -40,7 +41,7 @@ interface KitchenState {
     id: string,
     input: Partial<
       Omit<Recipe, "id" | "createdAt" | "authorId" | "authorName" | "visibility" | "categoryId">
-    > & { categoryName?: string },
+    > & { categoryName?: string; subcategoryName?: string },
   ) => Promise<Recipe>;
   deleteRecipe: (id: string) => Promise<void>;
   importFromUrl: (url: string) => Promise<Recipe>;
@@ -196,10 +197,18 @@ export const useKitchenStore = create<KitchenState>()(
         const ensured = ensureCategory(categories, categoryName);
         categories = ensured.categories;
 
+        let subcategoryId = input.subcategoryId;
+        if (input.subcategoryName) {
+          const sub = ensureCategory(categories, input.subcategoryName, ensured.categoryId);
+          categories = sub.categories;
+          subcategoryId = sub.categoryId;
+        }
+
         const localRecipe: Recipe = {
           ...input,
           id: uid("r"),
           categoryId: ensured.categoryId,
+          subcategoryId,
           authorId: user.id,
           authorName: user.name,
           visibility: "shared",
@@ -223,6 +232,7 @@ export const useKitchenStore = create<KitchenState>()(
               recipe: {
                 ...savedLocal,
                 categoryName,
+                subcategoryName: input.subcategoryName,
               },
             }),
           });
@@ -281,7 +291,7 @@ export const useKitchenStore = create<KitchenState>()(
           steps: input.steps ?? existing.steps,
         };
 
-        // Always re-pick the group from the latest recipe content
+        // Manual category wins; otherwise re-pick from content
         const categoryName =
           input.categoryName ??
           suggestCategoryName({
@@ -295,12 +305,20 @@ export const useKitchenStore = create<KitchenState>()(
         const ensured = ensureCategory(categories, categoryName);
         categories = ensured.categories;
         const categoryId = ensured.categoryId;
-        // Clear subcategory when parent group changes so it can be reassigned later
+
+        let subcategoryId: string | undefined;
+        if (input.subcategoryName) {
+          const sub = ensureCategory(categories, input.subcategoryName, categoryId);
+          categories = sub.categories;
+          subcategoryId = sub.categoryId;
+        } else if (existing.categoryId === categoryId) {
+          subcategoryId = existing.subcategoryId;
+        }
+
         const nextLocal: Recipe = {
           ...draft,
           categoryId,
-          subcategoryId:
-            existing.categoryId === categoryId ? existing.subcategoryId : undefined,
+          subcategoryId,
         };
         let recipes = get().recipes.map((r) => (r.id === id ? nextLocal : r));
         const split = maybeSplitCategory(categories, recipes, categoryId);

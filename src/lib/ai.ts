@@ -1,5 +1,24 @@
 import type { Category, MealType, Recipe, StoreAisle } from "./types";
 
+/** Top-level groups users can pick (or leave on auto). */
+export const RECIPE_GROUPS = [
+  "Супи",
+  "Основні страви",
+  "Випічка",
+  "Напої",
+  "Салати",
+  "Десерти",
+  "Сніданки",
+] as const;
+
+export type RecipeGroupName = (typeof RECIPE_GROUPS)[number];
+
+export const DRINK_SUBGROUPS = [
+  "Прохолоджувальні",
+  "Гарячі напої",
+  "Коктейлі",
+] as const;
+
 const KEYWORD_MAP: { category: string; keywords: string[]; weight?: number }[] = [
   {
     category: "Супи",

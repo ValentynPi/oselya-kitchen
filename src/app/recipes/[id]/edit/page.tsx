@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
-import { suggestCategoryName } from "@/lib/ai";
+import { DRINK_SUBGROUPS, RECIPE_GROUPS, suggestCategoryName } from "@/lib/ai";
 import { formatIngredientDisplay, smartParseIngredient } from "@/lib/ingredients";
 import { useKitchenStore } from "@/lib/store";
 import type { Ingredient, MealType, RecipeStep } from "@/lib/types";
@@ -19,6 +19,7 @@ export default function EditRecipePage({
   const { id } = use(params);
   const router = useRouter();
   const recipes = useKitchenStore((s) => s.recipes);
+  const categories = useKitchenStore((s) => s.categories);
   const updateRecipe = useKitchenStore((s) => s.updateRecipe);
   const deleteRecipe = useKitchenStore((s) => s.deleteRecipe);
   const [mounted, setMounted] = useState(false);
@@ -33,6 +34,8 @@ export default function EditRecipePage({
   const [mealTypes, setMealTypes] = useState<MealType[]>(["dinner"]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [steps, setSteps] = useState<RecipeStep[]>([]);
+  const [categoryName, setCategoryName] = useState<string | null>(null);
+  const [drinkSubgroup, setDrinkSubgroup] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -68,7 +71,13 @@ export default function EditRecipePage({
         : [{ name: "", amount: 1, unit: "г", aisle: "produce" }],
     );
     setSteps(recipe.steps.length ? recipe.steps : [{ order: 1, text: "" }]);
-  }, [recipe]);
+    const currentGroup = categories.find((c) => c.id === recipe.categoryId);
+    setCategoryName(currentGroup?.name ?? null);
+    const currentSub = recipe.subcategoryId
+      ? categories.find((c) => c.id === recipe.subcategoryId)
+      : undefined;
+    setDrinkSubgroup(currentSub?.name ?? null);
+  }, [recipe, categories]);
 
   if (mounted && !recipe) {
     return (
@@ -114,14 +123,16 @@ export default function EditRecipePage({
     setError("");
     try {
       const nextMeals: MealType[] = mealTypes.length ? mealTypes : ["dinner"];
-      const categoryName = suggestCategoryName({
-        title: title.trim(),
-        description: description.trim(),
-        ingredients: nextIngredients,
-        mealTypes: nextMeals,
-        cookTimeMinutes,
-        steps: nextSteps,
-      });
+      const nextCategory =
+        categoryName ??
+        suggestCategoryName({
+          title: title.trim(),
+          description: description.trim(),
+          ingredients: nextIngredients,
+          mealTypes: nextMeals,
+          cookTimeMinutes,
+          steps: nextSteps,
+        });
       await updateRecipe(id, {
         title: title.trim(),
         description: description.trim() || "Сімейний рецепт",
@@ -132,7 +143,9 @@ export default function EditRecipePage({
         mealTypes: nextMeals,
         ingredients: nextIngredients,
         steps: nextSteps,
-        categoryName,
+        categoryName: nextCategory,
+        subcategoryName:
+          nextCategory === "Напої" ? drinkSubgroup ?? undefined : undefined,
       });
       router.push(`/recipes/${id}`);
     } catch (err) {
@@ -170,12 +183,85 @@ export default function EditRecipePage({
         </h1>
         <p className="mt-2 text-ink-soft">Змініть будь-які поля й збережіть — або видаліть картку.</p>
 
-        {predictedCategory && (
-          <div className="mt-4 rounded-xl bg-mist/80 px-4 py-3 text-sm text-ink-soft">
-            Група обирається автоматично:{" "}
-            <span className="font-medium text-leaf">{predictedCategory}</span>
+        <div className="mt-4 rounded-xl bg-mist/80 px-4 py-3">
+          <p className="text-sm text-ink-soft">
+            Група:{" "}
+            <span className="font-medium text-leaf">
+              {categoryName ?? `Авто · ${predictedCategory ?? "…"}`}
+            </span>
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCategoryName(null);
+                setDrinkSubgroup(null);
+              }}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs",
+                categoryName === null
+                  ? "bg-leaf text-cream"
+                  : "bg-surface text-ink-soft ring-1 ring-line",
+              )}
+            >
+              Авто
+            </button>
+            {RECIPE_GROUPS.map((group) => (
+              <button
+                key={group}
+                type="button"
+                onClick={() => {
+                  setCategoryName(group);
+                  if (group !== "Напої") setDrinkSubgroup(null);
+                }}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs",
+                  categoryName === group
+                    ? "bg-leaf text-cream"
+                    : "bg-surface text-ink-soft ring-1 ring-line",
+                )}
+              >
+                {group}
+              </button>
+            ))}
           </div>
-        )}
+          {(categoryName === "Напої" ||
+            (!categoryName && predictedCategory === "Напої")) && (
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-line/50 pt-3">
+              <span className="w-full text-xs text-ink-soft">Підгрупа напоїв</span>
+              <button
+                type="button"
+                onClick={() => setDrinkSubgroup(null)}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs",
+                  drinkSubgroup === null
+                    ? "bg-leaf text-cream"
+                    : "bg-surface text-ink-soft ring-1 ring-line",
+                )}
+              >
+                Без підгрупи
+              </button>
+              {DRINK_SUBGROUPS.map((sub) => (
+                <button
+                  key={sub}
+                  type="button"
+                  onClick={() => {
+                    setCategoryName(categoryName ?? "Напої");
+                    setDrinkSubgroup(sub);
+                  }}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs",
+                    drinkSubgroup === sub
+                      ? "bg-leaf text-cream"
+                      : "bg-surface text-ink-soft ring-1 ring-line",
+                  )}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="mt-8 space-y-6">
           <label className="block">
