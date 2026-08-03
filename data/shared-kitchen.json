@@ -1108,7 +1108,84 @@
       "categoryId": "cat-mains",
       "visibility": "shared",
       "createdAt": "2026-08-02T18:32:29.894Z"
+    },
+    {
+      "title": "TARTAR DE FUET 😋",
+      "description": "Сімейний рецепт",
+      "authorId": "user-olena",
+      "authorName": "Pidlypnyi",
+      "sourceUrl": "https://www.instagram.com/reel/DY1oClmqzyL/?utm_source=ig_web_copy_link&igsh=NTc4MTIwNjQ2YQ==",
+      "ingredients": [
+        {
+          "name": "🔷 140 gr de fuet",
+          "amount": 1,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "🔷 1/2 cebolla morada",
+          "amount": 1,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "🔷 2 pepinillos encurtidos grandes",
+          "amount": 1,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "🔷 1 cdta de alcaparras",
+          "amount": 1,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "🔷 1 cdta mostaza",
+          "amount": 1,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "🔷 1 cdta de miel",
+          "amount": 1,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "🔷 1 cdta de salsa perrins",
+          "amount": 1,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "🔷 1 yema de huevo",
+          "amount": 1,
+          "unit": "",
+          "aisle": "pantry"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "1️⃣ En una picadora ponemos todos los ingredientes, picamos unos segundos para que queden trozos pequeños y emplatamos con ayuda de un aro."
+        }
+      ],
+      "imageUrl": "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 30,
+      "mealTypes": [
+        "dinner"
+      ],
+      "dietTags": [],
+      "cookMethods": [
+        "stovetop"
+      ],
+      "servings": 4,
+      "id": "r-v80u7pk",
+      "categoryId": "cat-desserts",
+      "visibility": "shared",
+      "createdAt": "2026-08-03T17:17:10.320Z"
     }
   ],
-  "updatedAt": "2026-08-02T18:32:29.894Z"
+  "updatedAt": "2026-08-03T17:17:10.320Z"
 }
