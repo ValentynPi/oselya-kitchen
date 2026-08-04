@@ -1185,7 +1185,101 @@
       "categoryId": "cat-desserts",
       "visibility": "shared",
       "createdAt": "2026-08-03T17:17:10.320Z"
+    },
+    {
+      "title": "Маринована скумбрія",
+      "description": "Створено з вставленого тексту. Перевірте картку перед збереженням.",
+      "authorId": "user-olena",
+      "authorName": "Pidlypnyi",
+      "ingredients": [
+        {
+          "name": "цукру",
+          "amount": 15,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "солі",
+          "amount": 15,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "олії пахучої",
+          "amount": 50,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "оцту столового",
+          "amount": 50,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "води",
+          "amount": 50,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "перцю чорного",
+          "amount": 2,
+          "unit": "г",
+          "aisle": "pantry"
+        },
+        {
+          "name": "лаврових листочки",
+          "amount": 2,
+          "unit": "",
+          "aisle": "pantry"
+        },
+        {
+          "name": "меленого коріандру",
+          "amount": 1,
+          "unit": "ч.л",
+          "aisle": "pantry"
+        },
+        {
+          "name": "Скумбрії",
+          "amount": 500,
+          "unit": "г",
+          "aisle": "produce"
+        }
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "text": "Цибулю нарізаємо півкільцями"
+        },
+        {
+          "order": 2,
+          "text": "Змішуємо інгредієнти маринаду і прогріваємо в мікрохвильовці 1 хв"
+        },
+        {
+          "order": 3,
+          "text": "Викладаємо слоями цибулю і скумбрію, заливаємо маринадом"
+        },
+        {
+          "order": 4,
+          "text": "В холодильник на 1 добу"
+        }
+      ],
+      "imageUrl": "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
+      "cookTimeMinutes": 30,
+      "mealTypes": [
+        "dinner"
+      ],
+      "dietTags": [],
+      "cookMethods": [
+        "stovetop"
+      ],
+      "servings": 500,
+      "id": "r-2x9uq5i",
+      "categoryId": "cat-mains",
+      "visibility": "shared",
+      "createdAt": "2026-08-04T06:18:41.292Z"
     }
   ],
-  "updatedAt": "2026-08-03T17:17:10.320Z"
+  "updatedAt": "2026-08-04T06:18:41.292Z"
 }
