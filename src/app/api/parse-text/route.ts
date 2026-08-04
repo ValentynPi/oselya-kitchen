@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseRecipeFromText } from "@/lib/parse-text";
+import { translateRecipeToUkrainian } from "@/lib/translate";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +13,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Текст занадто довгий" }, { status: 400 });
     }
 
-    const recipe = parseRecipeFromText(text);
+    const parsed = parseRecipeFromText(text);
+    const recipe = await translateRecipeToUkrainian(parsed);
     return NextResponse.json({ recipe });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Не вдалося розібрати текст";

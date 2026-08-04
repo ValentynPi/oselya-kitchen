@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractRecipeFromUrl } from "@/lib/extract";
+import { translateRecipeToUkrainian } from "@/lib/translate";
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,7 +10,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Вкажіть URL" }, { status: 400 });
     }
 
-    const recipe = await extractRecipeFromUrl(url);
+    const extracted = await extractRecipeFromUrl(url);
+    const recipe = await translateRecipeToUkrainian(extracted);
     return NextResponse.json({ recipe });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Помилка імпорту";
