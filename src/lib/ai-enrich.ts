@@ -17,7 +17,7 @@ export type AiEnrichedRecipe = ExtractedRecipe & {
   aiUsed?: boolean;
 };
 
-type GeminiRecipePayload = {
+type AiRecipePayload = {
   title?: string;
   description?: string;
   cookTimeMinutes?: number;
@@ -104,7 +104,7 @@ function userPrompt(recipe: ExtractedRecipe): string {
   ].join("\n");
 }
 
-function cleanIngredients(raw: GeminiRecipePayload["ingredients"]): Ingredient[] {
+function cleanIngredients(raw: AiRecipePayload["ingredients"]): Ingredient[] {
   if (!Array.isArray(raw)) return [];
   const out: Ingredient[] = [];
   for (const item of raw) {
@@ -129,7 +129,7 @@ function cleanIngredients(raw: GeminiRecipePayload["ingredients"]): Ingredient[]
   return out;
 }
 
-function cleanSteps(raw: GeminiRecipePayload["steps"]): RecipeStep[] {
+function cleanSteps(raw: AiRecipePayload["steps"]): RecipeStep[] {
   if (!Array.isArray(raw)) return [];
   const out: RecipeStep[] = [];
   for (const step of raw) {
@@ -180,7 +180,7 @@ function pickMeals(raw: string[] | undefined, categoryName: string): MealType[] 
 }
 
 /**
- * Ask Gemini to think through a scraped/parsed recipe draft.
+ * Ask ChatGPT to think through a scraped/parsed recipe draft.
  * Falls back to heuristics when AI is off or fails.
  */
 export async function enrichRecipeWithAi(
@@ -202,12 +202,12 @@ export async function enrichRecipeWithAi(
       aiUsed: false,
       warnings: [
         ...recipe.warnings,
-        "ШІ не налаштовано (додайте GEMINI_API_KEY) — використано евристику.",
+        "ШІ не налаштовано (додайте OPENAI_API_KEY) — використано евристику.",
       ],
     };
   }
 
-  const payload = await completeJson<GeminiRecipePayload>(
+  const payload = await completeJson<AiRecipePayload>(
     systemPrompt(),
     userPrompt(recipe),
   );
@@ -285,12 +285,12 @@ export async function enrichRecipeWithAi(
     mealTypes,
     aiUsed: true,
     warnings: Array.from(
-      new Set([...recipe.warnings, ...aiWarnings, "Оброблено ШІ (Gemini)."]),
+      new Set([...recipe.warnings, ...aiWarnings, "Оброблено ШІ (ChatGPT)."]),
     ),
   };
 }
 
-/** Server-side category suggestion that prefers Gemini when available. */
+/** Server-side category suggestion that prefers ChatGPT when available. */
 export async function suggestCategoryWithAi(
   recipe: Pick<
     ExtractedRecipe,

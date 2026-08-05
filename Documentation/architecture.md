@@ -12,7 +12,7 @@
 |--------|------------|
 | Google-автентифікація, без анонімів | `AuthGate` + кнопка Google (демо-профіль) |
 | Спільні / приватні рецепти | `visibility` + фільтр `visibleRecipes()` |
-| ШІ-категоризація | `src/lib/ai.ts` (евристика) + `src/lib/ai-enrich.ts` (Gemini після імпорту) |
+| ШІ-категоризація | `src/lib/ai.ts` (евристика) + `src/lib/ai-enrich.ts` (ChatGPT після імпорту) |
 | Підкатегорії при >10 | `maybeSplitCategory` |
 | Імпорт за URL | `/api/extract` + `extractRecipeFromUrl`, збереження `sourceUrl` |
 | Картка рецепта | `/recipes/[id]` |
@@ -26,10 +26,11 @@
 Усі додані рецепти зберігаються спільно (`/api/recipes` + `data/shared-kitchen.json`).
 На Vercel записи йдуть у GitHub через `GITHUB_TOKEN`, тож кожен відвідувач бачить ті самі рецепти.
 
-## Gemini ШІ (імпорт)
+## ChatGPT ШІ (імпорт)
 
 Після витягування та перекладу `/api/extract` і `/api/parse-text` викликають `enrichRecipeWithAi`:
 модель перевіряє інгредієнти/кроки, прибирає сміття, нормалізує українською й обирає категорію.
 
-Потрібен `GEMINI_API_KEY` у `.env.local` (локально) і в **Vercel → Project → Settings → Environment Variables**.
+Потрібен `OPENAI_API_KEY` у `.env.local` (локально) і в **Vercel → Project → Settings → Environment Variables**.
+Опційно: `OPENAI_MODEL` (за замовчуванням `gpt-4o-mini`).
 Без ключа імпорт працює на евристиках і показує попередження.

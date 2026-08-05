@@ -436,7 +436,7 @@ function AddRecipeInner() {
 
       {draft && (
         <section className="mt-6 space-y-5">
-          {draft.warnings.some((w) => /ШІ|Gemini|евристик/i.test(w)) && (
+          {draft.warnings.some((w) => /ШІ|ChatGPT|OpenAI|евристик/i.test(w)) && (
             <p className="text-xs text-ink-soft">
               {draft.warnings.some((w) => /Оброблено ШІ/i.test(w))
                 ? "ШІ переглянув картку: інгредієнти, кроки й категорію можна ще підправити вручну."

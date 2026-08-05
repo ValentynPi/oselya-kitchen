@@ -1,9 +1,11 @@
-/** Gemini LLM helpers for server-side recipe enrichment. */
+/** OpenAI (ChatGPT) helpers for server-side recipe enrichment. */
 
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const DEFAULT_BASE =
+  process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com/v1";
 
 export function isAiConfigured(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY?.trim());
+  return Boolean(process.env.OPENAI_API_KEY?.trim());
 }
 
 function extractJsonObject(raw: string): string | null {
@@ -20,19 +22,16 @@ function extractJsonObject(raw: string): string | null {
 }
 
 /**
- * Ask Gemini for a JSON object. Returns null when unconfigured or on any failure.
+ * Ask ChatGPT for a JSON object. Returns null when unconfigured or on any failure.
  */
 export async function completeJson<T>(
   system: string,
   user: string,
 ): Promise<T | null> {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const model = DEFAULT_MODEL;
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
-    `?key=${encodeURIComponent(apiKey)}`;
+  const url = `${DEFAULT_BASE}/chat/completions`;
 
   try {
     const controller = new AbortController();
@@ -41,14 +40,18 @@ export async function completeJson<T>(
       const res = await fetch(url, {
         method: "POST",
         signal: controller.signal,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system }] },
-          contents: [{ role: "user", parts: [{ text: user }] }],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: "application/json",
-          },
+          model: DEFAULT_MODEL,
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
         }),
       });
 
@@ -57,15 +60,10 @@ export async function completeJson<T>(
       }
 
       const data = (await res.json()) as {
-        candidates?: Array<{
-          content?: { parts?: Array<{ text?: string }> };
-        }>;
+        choices?: Array<{ message?: { content?: string | null } }>;
       };
 
-      const text = data.candidates?.[0]?.content?.parts
-        ?.map((p) => p.text || "")
-        .join("")
-        .trim();
+      const text = data.choices?.[0]?.message?.content?.trim();
       if (!text) return null;
 
       const jsonText = extractJsonObject(text);
