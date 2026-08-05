@@ -291,14 +291,19 @@ export function isTimeOnlyLine(line: string): boolean {
 
 /**
  * Recipe-card chrome: difficulty, time labels, how-to titles, servings — not edible.
+ * Important: do NOT match cooking verbs at the start of real steps
+ * ("Cook the onions…", "Rest the dough…", "Marinate overnight…").
  */
 export function isRecipeMetaLine(line: string): boolean {
-  const t = cleanIngredientText(line).replace(/[:：]\s*$/, "").trim();
-  if (!t) return true;
-  if (isTimeOnlyLine(t)) return true;
+  const raw = cleanIngredientText(line).trim();
+  if (!raw) return true;
+  if (isTimeOnlyLine(raw)) return true;
 
+  // Strip trailing colon for label checks, keep original for length heuristics
+  const t = raw.replace(/[:：]\s*$/, "").trim();
   const end = String.raw`(?=\s|$|[:：])`;
 
+  // How-to / article titles mistaken for ingredients
   if (
     new RegExp(
       `^(?:як\\s+приготувати|як\\s+зробити|як\\s+смачно|рецепт\\s+приготування|how\\s+to\\s+(?:make|cook|prepare)|recipe\\s+for)${end}`,
@@ -308,6 +313,7 @@ export function isRecipeMetaLine(line: string): boolean {
     return true;
   }
 
+  // Difficulty / level (label or "Складність: середня")
   if (
     new RegExp(
       `^(?:складність|рівень(?:\\s+складності)?|difficulty|level|dificultad|dificultat)${end}`,
@@ -316,17 +322,23 @@ export function isRecipeMetaLine(line: string): boolean {
   ) {
     return true;
   }
+  if (/^(?:складність|difficulty|рівень)\s*[:：]/i.test(raw)) return true;
 
+  // Standalone time-stage LABELS only (short card fields), not instruction sentences.
+  // Allow optional value after colon: "Загальний час: 1 год", "Prep time 15 min"
   if (
-    new RegExp(
-      `^(?:загальний\\s+час|час\\s+приготування|час\\s+підготовки|час\\s+готування|підготовка|розробка|відпочинок|маринування|охолодження|випікання|варіння|смаження|prep(?:\\s*time)?|cook(?:\\s*time)?|total(?:\\s*time)?|preparation|rest(?:ing)?(?:\\s*time)?|marinat(?:e|ing)|cooling|baking|elaboration|elaboraci[oó]n|tiempo\\s+total)${end}`,
-      "i",
-    ).test(t)
+    /^(?:загальний\s+час|час\s+приготування|час\s+підготовки|час\s+готування|підготовка|розробка|відпочинок|маринування|охолодження|випікання|варіння|смаження|prep(?:\s*time)?|cook(?:\s*time)?|total(?:\s*time)?|preparation(?:\s*time)?|rest(?:ing)?(?:\s*time)?|marinat(?:e|ing)?(?:\s*time)?|cooling(?:\s*time)?|baking(?:\s*time)?|elaboration|elaboraci[oó]n|tiempo\s+total)\s*(?:[:：].*)?$/i.test(
+      t,
+    )
   ) {
     return true;
   }
 
-  if (/^(?:складність|difficulty|рівень|загальний\s+час|prep|cook|total)\s*[:：]/i.test(t)) {
+  // "Prep: 15 min" / "Cook: 10 min" style — short only
+  if (
+    /^(?:prep|cook|total|підготовка|розробка|відпочинок)\s*[:：]\s*.{0,40}$/i.test(raw) &&
+    raw.length <= 48
+  ) {
     return true;
   }
 

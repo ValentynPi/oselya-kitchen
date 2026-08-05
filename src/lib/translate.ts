@@ -342,10 +342,12 @@ function normalizeFoodKey(input: string): string {
     .trim();
 }
 
-/** Map known culinary terms; longest phrase wins. */
+/** Map known culinary terms; longest phrase wins. Only for short ingredient-like strings. */
 function glossaryTranslate(text: string): string | null {
   const key = normalizeFoodKey(text);
   if (!key) return null;
+  // Never treat full cooking steps as glossary hits
+  if (key.length > 48 || key.split(/\s+/).length > 6) return null;
 
   const polish = (value: string) =>
     value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
@@ -356,22 +358,23 @@ function glossaryTranslate(text: string): string | null {
   const noArticle = key.replace(/^(?:el|la|los|las|un|una|the|a|an|le|les|der|die|das)\s+/, "");
   if (noArticle !== key && FOOD_TO_UK[noArticle]) return polish(FOOD_TO_UK[noArticle]);
 
-  // Phrase substitution for multi-word leftovers (longest keys first)
+  return null;
+}
+
+/** Replace known food tokens inside a longer translated line (post-pass only). */
+function glossaryPolishLine(text: string): string {
+  const key = normalizeFoodKey(text);
+  if (!key || key.length < 3) return text;
   const keys = Object.keys(FOOD_TO_UK).sort((a, b) => b.length - a.length);
-  let out = key;
-  let changed = false;
+  let out = text;
   for (const k of keys) {
-    if (k.length < 3) continue;
-    const re = new RegExp(`(?:^|\\s)${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\s|$)`, "gi");
+    if (k.length < 4) continue; // skip tiny tokens like "sal" inside longer Ukrainian words
+    const re = new RegExp(`(?<![\\p{L}\\p{N}])${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "giu");
     if (re.test(out)) {
-      out = out.replace(re, (m) => {
-        const lead = /^\s/.test(m) ? m[0] : "";
-        return lead + FOOD_TO_UK[k];
-      });
-      changed = true;
+      out = out.replace(re, FOOD_TO_UK[k]);
     }
   }
-  return changed ? polish(out) : null;
+  return out;
 }
 
 /** True when text already reads as Ukrainian. */
@@ -570,11 +573,14 @@ export async function translateToUkrainian(
     let best = auto;
     let bestScore = scoreTranslation(cleaned, auto.text);
 
-    // Auto often mislabels Spanish as English and transliterates short words
+    // Auto often mislabels Spanish as English and transliterates short words.
+    // Only retry languages for short strings — long steps would blow the API timeout.
+    const allowRetry = cleaned.length <= 40;
     if (
-      bestScore < 8 ||
-      looksLikeTransliteration(cleaned, auto.text) ||
-      auto.lang === "en" && cleaned.length <= 24
+      allowRetry &&
+      (bestScore < 8 ||
+        looksLikeTransliteration(cleaned, auto.text) ||
+        (auto.lang === "en" && cleaned.length <= 24))
     ) {
       for (const lang of guessSourceLangs(cleaned).slice(0, 4)) {
         try {
@@ -591,8 +597,11 @@ export async function translateToUkrainian(
       }
     }
 
-    // Final glossary pass on machine output (fixes leftover foreign tokens)
-    const afterGloss = glossaryTranslate(best.text) || best.text;
+    // Final glossary pass on machine output (short leftovers only)
+    const afterGloss =
+      best.text.length <= 48
+        ? glossaryTranslate(best.text) || best.text
+        : glossaryPolishLine(best.text);
 
     if (best.lang === "uk" || best.lang === "ukrainian") {
       // Detected as Ukrainian but may still be a foreign transliteration in Cyrillic

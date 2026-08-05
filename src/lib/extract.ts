@@ -4,6 +4,8 @@ import {
   hasQuantitySignal,
   ingredientsFromTrustedLines,
   isChromeIngredient,
+  isRecipeMetaLine,
+  isTimeOnlyLine,
   looksMeasuredLine,
   smartParseIngredient,
 } from "@/lib/ingredients";
@@ -360,6 +362,8 @@ function isObviouslyNotStep(line: string): boolean {
   if (t.length > 1200) return true;
   if (/^https?:\/\//i.test(t)) return true;
   if (/^\d{1,2}:\d{2}\b/.test(t)) return true;
+  // Time-only / card labels — never cooking directions
+  if (isTimeOnlyLine(t) || isRecipeMetaLine(t)) return true;
   if (
     /^(save recipe|print|share|rate this|advertisement|newsletter|subscribe|related recipes?|you may also|comments?|reviews?|nutrition|інгредієнти|новини|читайте також)\b/i.test(
       t,
@@ -469,7 +473,10 @@ function heuristicExtract(html: string, url: string, host: string): ExtractedRec
 
   /** Steps often live in <p> / <div class="…instruction-text">, not only <li>. */
   const stepsFromBlocks = (blocks: RegExpMatchArray[]): string[] => {
-    const fromLi = liFrom(blocks, 1200);
+    const fromLi = blocks
+      .flatMap((b) => [...b[1].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)])
+      .map((m) => stripHtml(m[1]).replace(/^\d+[.)]\s*/, "").trim())
+      .filter((t) => t.length > 12 && t.length < 1200 && !isObviouslyNotStep(t));
     if (fromLi.length >= 2) return fromLi;
 
     const fromTagged = blocks.flatMap((b) => {
@@ -485,15 +492,7 @@ function heuristicExtract(html: string, url: string, host: string): ExtractedRec
 
     const cleaned = fromTagged
       .map((t) => t.replace(/^\d+[.)]\s*/, "").trim())
-      .filter(
-        (t) =>
-          t.length > 12 &&
-          t.length < 1200 &&
-          !isJunkLine(t) &&
-          !isChromeIngredient(t) &&
-          !isPlaceholderStep(t) &&
-          !isObviouslyNotStep(t),
-      );
+      .filter((t) => t.length > 12 && t.length < 1200 && !isObviouslyNotStep(t));
 
     // Dedupe while preserving order
     const seen = new Set<string>();
@@ -512,14 +511,7 @@ function heuristicExtract(html: string, url: string, host: string): ExtractedRec
     ),
   ]
     .map((m) => stripHtml(m[1]).replace(/^\d+[.)]\s*/, "").trim())
-    .filter(
-      (t) =>
-        t.length > 12 &&
-        t.length < 1200 &&
-        !isJunkLine(t) &&
-        !isChromeIngredient(t) &&
-        !isObviouslyNotStep(t),
-    );
+    .filter((t) => t.length > 12 && t.length < 1200 && !isObviouslyNotStep(t));
 
   let ingredients = filterIngredientObjects(liFrom(ingredientBlocks).map(parseIngredientLine));
   let stepTexts = stepsFromBlocks(stepBlocks);
