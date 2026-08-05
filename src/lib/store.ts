@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ensureCategory, maybeSplitCategory, parseImportUrl, suggestCategoryName } from "./ai";
+import { ensureCategory, maybeSplitCategory, parseImportUrl, suggestCategoryName, suggestDrinkSubgroup, suggestMealTypes } from "./ai";
 import { buildShoppingList } from "./kitchen";
 import { demoUser, initialCategories, initialRecipes } from "./seed";
 import type {
@@ -184,29 +184,35 @@ export const useKitchenStore = create<KitchenState>()(
 
       addRecipe: async (input) => {
         const user = get().user ?? demoUser;
-        const categoryName =
-          input.categoryName ??
-          suggestCategoryName({
-            title: input.title,
-            description: input.description,
-            ingredients: input.ingredients,
-            mealTypes: input.mealTypes,
-            cookTimeMinutes: input.cookTimeMinutes,
-            steps: input.steps,
-          });
+        const suggestable = {
+          title: input.title,
+          description: input.description,
+          ingredients: input.ingredients,
+          mealTypes: input.mealTypes,
+          cookTimeMinutes: input.cookTimeMinutes,
+          steps: input.steps,
+        };
+        const categoryName = input.categoryName ?? suggestCategoryName(suggestable);
         let categories = get().categories;
         const ensured = ensureCategory(categories, categoryName);
         categories = ensured.categories;
 
         let subcategoryId = input.subcategoryId;
-        if (input.subcategoryName) {
-          const sub = ensureCategory(categories, input.subcategoryName, ensured.categoryId);
+        let subcategoryName = input.subcategoryName;
+        if (!subcategoryName && categoryName === "Напої") {
+          subcategoryName = suggestDrinkSubgroup(suggestable);
+        }
+        if (subcategoryName) {
+          const sub = ensureCategory(categories, subcategoryName, ensured.categoryId);
           categories = sub.categories;
           subcategoryId = sub.categoryId;
         }
 
+        const mealTypes = suggestMealTypes(categoryName, input.mealTypes);
+
         const localRecipe: Recipe = {
           ...input,
+          mealTypes,
           id: uid("r"),
           categoryId: ensured.categoryId,
           subcategoryId,
@@ -233,7 +239,7 @@ export const useKitchenStore = create<KitchenState>()(
               recipe: {
                 ...savedLocal,
                 categoryName,
-                subcategoryName: input.subcategoryName,
+                subcategoryName,
               },
             }),
           });
@@ -293,31 +299,42 @@ export const useKitchenStore = create<KitchenState>()(
         };
 
         // Manual category wins; otherwise re-pick from content
-        const categoryName =
-          input.categoryName ??
-          suggestCategoryName({
-            title: draft.title,
-            description: draft.description,
-            ingredients: draft.ingredients,
-            mealTypes: draft.mealTypes,
-            cookTimeMinutes: draft.cookTimeMinutes,
-            steps: draft.steps,
-          });
+        const suggestable = {
+          title: draft.title,
+          description: draft.description,
+          ingredients: draft.ingredients,
+          mealTypes: draft.mealTypes,
+          cookTimeMinutes: draft.cookTimeMinutes,
+          steps: draft.steps,
+        };
+        const categoryName = input.categoryName ?? suggestCategoryName(suggestable);
         const ensured = ensureCategory(categories, categoryName);
         categories = ensured.categories;
         const categoryId = ensured.categoryId;
 
         let subcategoryId: string | undefined;
-        if (input.subcategoryName) {
-          const sub = ensureCategory(categories, input.subcategoryName, categoryId);
+        let subcategoryName = input.subcategoryName;
+        if (!subcategoryName && categoryName === "Напої" && input.categoryName !== undefined) {
+          // Manual Напої without subgroup → suggest one
+          subcategoryName = suggestDrinkSubgroup(suggestable);
+        } else if (!subcategoryName && !input.categoryName && categoryName === "Напої") {
+          subcategoryName = suggestDrinkSubgroup(suggestable);
+        }
+        if (subcategoryName) {
+          const sub = ensureCategory(categories, subcategoryName, categoryId);
           categories = sub.categories;
           subcategoryId = sub.categoryId;
         } else if (existing.categoryId === categoryId) {
           subcategoryId = existing.subcategoryId;
         }
 
+        const mealTypes = input.mealTypes
+          ? suggestMealTypes(categoryName, input.mealTypes)
+          : suggestMealTypes(categoryName, draft.mealTypes);
+
         const nextLocal: Recipe = {
           ...draft,
+          mealTypes,
           categoryId,
           subcategoryId,
         };

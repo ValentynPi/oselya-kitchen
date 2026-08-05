@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureCategory, maybeSplitCategory, suggestCategoryName } from "@/lib/ai";
+import { ensureCategory, maybeSplitCategory, suggestCategoryName, suggestDrinkSubgroup, suggestMealTypes } from "@/lib/ai";
 import { getSharedKitchen, saveSharedKitchen } from "@/lib/shared-store";
 import type { Recipe } from "@/lib/types";
 
@@ -33,26 +33,30 @@ export async function POST(req: NextRequest) {
 
     const kitchen = await getSharedKitchen();
     let categories = kitchen.categories;
-    const categoryName =
-      body.recipe.categoryName ??
-      suggestCategoryName({
-        title: body.recipe.title,
-        description: body.recipe.description ?? "",
-        ingredients: body.recipe.ingredients ?? [],
-        mealTypes: body.recipe.mealTypes,
-        cookTimeMinutes: body.recipe.cookTimeMinutes,
-        steps: body.recipe.steps,
-      });
+    const suggestable = {
+      title: body.recipe.title,
+      description: body.recipe.description ?? "",
+      ingredients: body.recipe.ingredients ?? [],
+      mealTypes: body.recipe.mealTypes,
+      cookTimeMinutes: body.recipe.cookTimeMinutes,
+      steps: body.recipe.steps,
+    };
+    const categoryName = body.recipe.categoryName ?? suggestCategoryName(suggestable);
 
     const ensured = ensureCategory(categories, categoryName);
     categories = ensured.categories;
 
     let subcategoryId = body.recipe.subcategoryId;
-    if (body.recipe.subcategoryName) {
-      const sub = ensureCategory(categories, body.recipe.subcategoryName, ensured.categoryId);
+    const subcategoryName =
+      body.recipe.subcategoryName ??
+      (categoryName === "Напої" ? suggestDrinkSubgroup(suggestable) : undefined);
+    if (subcategoryName) {
+      const sub = ensureCategory(categories, subcategoryName, ensured.categoryId);
       categories = sub.categories;
       subcategoryId = sub.categoryId;
     }
+
+    const mealTypes = suggestMealTypes(categoryName, body.recipe.mealTypes);
 
     const recipe: Recipe = {
       title: body.recipe.title.trim(),
@@ -65,7 +69,7 @@ export async function POST(req: NextRequest) {
       steps: body.recipe.steps ?? [],
       imageUrl: body.recipe.imageUrl ?? "",
       cookTimeMinutes: body.recipe.cookTimeMinutes ?? 30,
-      mealTypes: body.recipe.mealTypes ?? ["dinner"],
+      mealTypes,
       dietTags: body.recipe.dietTags ?? [],
       cookMethods: body.recipe.cookMethods ?? ["stovetop"],
       servings: body.recipe.servings ?? 4,
@@ -111,7 +115,6 @@ export async function PATCH(req: NextRequest) {
 
     const patch = body.patch ?? {};
     let categories = kitchen.categories;
-    let categoryId = patch.categoryId ?? existing.categoryId;
 
     const draft: Recipe = {
       ...existing,
@@ -120,26 +123,59 @@ export async function PATCH(req: NextRequest) {
       createdAt: existing.createdAt,
       visibility: "shared",
       title: (patch.title ?? existing.title).trim(),
-      categoryId,
     };
 
-    const categoryName = suggestCategoryName({
+    const suggestable = {
       title: draft.title,
       description: draft.description,
       ingredients: draft.ingredients,
       mealTypes: draft.mealTypes,
       cookTimeMinutes: draft.cookTimeMinutes,
       steps: draft.steps,
-    });
-    const ensured = ensureCategory(categories, categoryName);
-    categories = ensured.categories;
-    categoryId = ensured.categoryId;
+    };
+
+    // Prefer explicit categoryId from client; otherwise re-classify from content
+    let categoryId = patch.categoryId ?? existing.categoryId;
+    if (!patch.categoryId) {
+      const categoryName = suggestCategoryName(suggestable);
+      const ensured = ensureCategory(categories, categoryName);
+      categories = ensured.categories;
+      categoryId = ensured.categoryId;
+    } else {
+      // Keep category list in sync if id is unknown somehow
+      const known = categories.some((c) => c.id === categoryId);
+      if (!known) {
+        const categoryName = suggestCategoryName(suggestable);
+        const ensured = ensureCategory(categories, categoryName);
+        categories = ensured.categories;
+        categoryId = ensured.categoryId;
+      }
+    }
+
+    let subcategoryId =
+      patch.subcategoryId !== undefined
+        ? patch.subcategoryId
+        : existing.categoryId === categoryId
+          ? existing.subcategoryId
+          : undefined;
+
+    const parent = categories.find((c) => c.id === categoryId);
+    if (!subcategoryId && parent?.name === "Напої") {
+      const subName = suggestDrinkSubgroup(suggestable);
+      if (subName) {
+        const sub = ensureCategory(categories, subName, categoryId);
+        categories = sub.categories;
+        subcategoryId = sub.categoryId;
+      }
+    }
+
+    const mealTypes = suggestMealTypes(parent?.name ?? "Основні страви", draft.mealTypes);
 
     const updated: Recipe = {
       ...draft,
+      mealTypes,
       categoryId,
-      subcategoryId:
-        existing.categoryId === categoryId ? existing.subcategoryId : undefined,
+      subcategoryId,
     };
     let recipes = kitchen.recipes.map((r) => (r.id === body.id ? updated : r));
     const split = maybeSplitCategory(categories, recipes, categoryId);
