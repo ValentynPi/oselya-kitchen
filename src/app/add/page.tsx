@@ -394,7 +394,7 @@ function AddRecipeInner() {
             {loading ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Розбираю текст…
+                Розбираю і перекладаю…
               </>
             ) : (
               <>
@@ -404,8 +404,8 @@ function AddRecipeInner() {
             )}
           </button>
           <p className="mt-3 text-xs text-ink-soft">
-            Краще працює, якщо в тексті є блоки «Інгредієнти» та «Приготування». Після розбору
-            можна все підправити.
+            Краще працює з блоками «Ingredients / Інгредієнти» та «Instructions / Приготування».
+            Якщо текст іншою мовою — автоматично перекладемо українською.
           </p>
         </section>
       )}

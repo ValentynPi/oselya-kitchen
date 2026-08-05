@@ -200,6 +200,13 @@ async function translateStep(step: RecipeStep): Promise<RecipeStep> {
   return { ...step, text };
 }
 
+const UK_BOILERPLATE =
+  /створено з вставленого тексту|перевірте картку|імпортовано з|додайте інгредієнти|опишіть кроки|рецепт з тексту|див\. джерело/i;
+
+function isUkrainianBoilerplate(text: string): boolean {
+  return UK_BOILERPLATE.test(text);
+}
+
 /**
  * Translate recipe fields to Ukrainian when the source is another language.
  * Keeps amounts; localizes common English units.
@@ -207,21 +214,45 @@ async function translateStep(step: RecipeStep): Promise<RecipeStep> {
 export async function translateRecipeToUkrainian(
   recipe: ExtractedRecipe,
 ): Promise<ExtractedRecipe> {
-  const sample = [recipe.title, recipe.description, ...recipe.ingredients.slice(0, 3).map((i) => i.name)]
-    .filter(Boolean)
-    .join(" ");
+  // Decide from real content only — ignore Ukrainian placeholder copy from the parser
+  const contentParts = [
+    recipe.title,
+    ...recipe.ingredients.map((i) => i.name),
+    ...recipe.steps.map((s) => s.text),
+  ].filter((t) => t && !isUkrainianBoilerplate(t));
 
-  if (!needsTranslation(sample)) {
+  const shouldTranslate = contentParts.some((t) => needsTranslation(t));
+
+  if (!shouldTranslate) {
     return {
       ...recipe,
-      ingredients: recipe.ingredients.map((i) => ({ ...i, unit: localizeUnit(i.unit || "") })),
+      ingredients: recipe.ingredients.map((i) => ({
+        ...i,
+        unit: localizeUnit(i.unit || ""),
+      })),
     };
   }
 
-  const titleResult = await translateToUkrainian(recipe.title);
-  const descResult = await translateToUkrainian(recipe.description || "");
-  const ingredients = await mapPool(recipe.ingredients, 3, (ing) => translateIngredient(ing));
-  const steps = await mapPool(recipe.steps, 2, (step) => translateStep(step));
+  const titleResult = isUkrainianBoilerplate(recipe.title)
+    ? { text: recipe.title, lang: "uk", translated: false }
+    : await translateToUkrainian(recipe.title);
+
+  const descResult =
+    !recipe.description || isUkrainianBoilerplate(recipe.description)
+      ? { text: recipe.description, lang: "uk", translated: false }
+      : await translateToUkrainian(recipe.description);
+
+  const ingredients = await mapPool(recipe.ingredients, 3, async (ing) => {
+    if (isUkrainianBoilerplate(ing.name)) {
+      return { ...ing, unit: localizeUnit(ing.unit || "") };
+    }
+    return translateIngredient(ing);
+  });
+
+  const steps = await mapPool(recipe.steps, 2, async (step) => {
+    if (isUkrainianBoilerplate(step.text)) return step;
+    return translateStep(step);
+  });
 
   const sourceLang = titleResult.lang !== "uk" ? titleResult.lang : descResult.lang;
   const didTranslate =
@@ -230,7 +261,9 @@ export async function translateRecipeToUkrainian(
     ingredients.some((ing, i) => ing.name !== recipe.ingredients[i]?.name) ||
     steps.some((s, i) => s.text !== recipe.steps[i]?.text);
 
-  const langLabel = LANG_LABELS[sourceLang] || (sourceLang !== "uk" && sourceLang !== "auto" ? sourceLang : null);
+  const langLabel =
+    LANG_LABELS[sourceLang] ||
+    (sourceLang !== "uk" && sourceLang !== "auto" ? sourceLang : null);
   const warnings = [...recipe.warnings];
   if (didTranslate) {
     warnings.push(
