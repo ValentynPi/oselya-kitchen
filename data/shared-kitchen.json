@@ -1377,113 +1377,11 @@
         "stovetop"
       ],
       "servings": 4,
-      "id": "r-vv8kj70",
-      "categoryId": "cat-desserts",
-      "visibility": "shared",
-      "createdAt": "2026-08-05T14:43:45.414Z"
-    },
-    {
-      "title": "Рецепт з тексту",
-      "description": "Створено з вставленого тексту. Перевірте картку перед збереженням.",
-      "authorId": "user-olena",
-      "authorName": "Pidlypnyi",
-      "ingredients": [
-        {
-          "name": "TARTAR DE FUET",
-          "amount": 1,
-          "unit": "",
-          "aisle": "pantry"
-        }
-      ],
-      "steps": [
-        {
-          "order": 1,
-          "text": "Hoy preparamos un aperitivo sencillo, rico y perfecto para el calor. Un tartar de fuet con una salsa casera brutal, que le aporta cremosidad y mucho sabor… ¡espero que os guste!"
-        },
-        {
-          "order": 2,
-          "text": "📝 INGREDIENTES (aperitivo para 2-3 personas):"
-        },
-        {
-          "order": 3,
-          "text": "▪️200g de fuet (aproximadamente 1 fuet entero)"
-        },
-        {
-          "order": 4,
-          "text": "▪️1/2 cebolleta"
-        },
-        {
-          "order": 5,
-          "text": "▪️3 pepinillos pequeños"
-        },
-        {
-          "order": 6,
-          "text": "▪️2-3 piparras"
-        },
-        {
-          "order": 7,
-          "text": "▪️1 cdta colmada de alcaparras"
-        },
-        {
-          "order": 8,
-          "text": "▪️1 cucharada sopera de mostaza en grano (antigua)"
-        },
-        {
-          "order": 9,
-          "text": "▪️1 cdta de salsa inglesa, también llamada Worcestershire o Perrins (sustituíble por salsa de soja)"
-        },
-        {
-          "order": 10,
-          "text": "▪️2 yemas de huevo"
-        },
-        {
-          "order": 11,
-          "text": "▪️100ml de aceite de oliva suave"
-        },
-        {
-          "order": 12,
-          "text": "▪️Cebollino picado al gusto"
-        },
-        {
-          "order": 13,
-          "text": "👨🏻‍🍳 ELABORACIÓN:"
-        },
-        {
-          "order": 14,
-          "text": "1️⃣ Lo primero que haremos será pelar el fuet, ya que la piel no queda bien para esta receta. Ayuda mucho mojarlo ligeramente bajo el grifo y secarlo con papel absorbente antes de pelarlo."
-        },
-        {
-          "order": 15,
-          "text": "Una vez pelado, lo cortamos en láminas, luego en bastones y finalmente lo picamos bien fino. Es muy importante utilizar un cuchillo bien afilado."
-        },
-        {
-          "order": 16,
-          "text": "2️⃣ Por otro lado picamos finamente los encurtidos y la cebolleta. A mi me gusta agregar piparras para darle el toque picante, pero es cuestión de gustos."
-        },
-        {
-          "order": 17,
-          "text": "3️⃣ Para preparar la salsa, batimos las yemas de huevo en un bowl y vamos incorporando muy poco a poco el aceite, sin dejar de batir. Es importante incorporar el aceite a hilo fino, en pequeñas tandas y remover hasta que se integre por completo antes de adicionar más aceite. Si nos pasamos de cantidad de aceite antes de que logre emulsionar, la salsa no espesará."
-        },
-        {
-          "order": 18,
-          "text": "4️⃣ Una vez tenemos la salsa lista, agregamos la mostaza en grano y la salsa inglesa (worcestershire), integramos bien e incorporamos el resto de ingredientes que habíamos picado. Mezclamos todo y servimos en aro, terminamos con cebollino picado y acompañamos de pan tostado… ¡a disfrutar!"
-        }
-      ],
-      "imageUrl": "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
-      "cookTimeMinutes": 30,
-      "mealTypes": [
-        "dinner"
-      ],
-      "dietTags": [],
-      "cookMethods": [
-        "stovetop"
-      ],
-      "servings": 4,
       "id": "r-gxax9kh",
       "categoryId": "cat-desserts",
       "visibility": "shared",
       "createdAt": "2026-08-05T14:43:47.768Z"
     }
   ],
-  "updatedAt": "2026-08-05T14:43:47.768Z"
+  "updatedAt": "2026-08-05T20:10:49.493Z"
 }
