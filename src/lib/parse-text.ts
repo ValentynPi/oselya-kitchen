@@ -1,4 +1,4 @@
-import { smartParseIngredient } from "@/lib/ingredients";
+import { isChromeIngredient, smartParseIngredient } from "@/lib/ingredients";
 import type { Ingredient, RecipeStep } from "@/lib/types";
 import type { ExtractedRecipe } from "@/lib/extract";
 
@@ -29,6 +29,7 @@ function isMetaLine(line: string): boolean {
   }
   if (/^\d+\s*(?:осіб|ос\.?|people|persons?|servings?|порц)/iu.test(t)) return true;
   if (/^(?:serves?|порці[ії]|кількість|yield)(?=\s|$|[:：])/iu.test(t)) return true;
+  if (isChromeIngredient(t)) return true;
   return false;
 }
 

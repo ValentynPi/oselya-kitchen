@@ -227,12 +227,16 @@ export function smartParseIngredient(raw: string): Ingredient {
 
   // Counted items without unit: "3 large eggs", "2 цибулини"
   // Do not treat news timestamps "12:49 Headline" as "12" + ":49 Headline"
-  if (!/^\d{1,2}:\d{2}\b/.test(original)) {
+  // Do not treat "15 хв" / "2 год" as ingredients
+  if (!/^\d{1,2}:\d{2}\b/.test(original) && !isTimeOnlyLine(original)) {
     const countName = original.match(new RegExp(`^(${AMOUNT_RE})\\s+(.+)$`));
     if (countName && !/^\d/.test(countName[2])) {
       const name = finalizeName(countName[2]);
-      // Avoid treating years / temperatures as counts
-      if (!/°|celsius|fahrenheit|degrees/i.test(name)) {
+      if (
+        !/°|celsius|fahrenheit|degrees/i.test(name) &&
+        !/^(?:хв\.?|хвилин[аи]?|год\.?|годин[аи]?|min(?:ute)?s?|hrs?|hours?|h)$/i.test(name) &&
+        !isRecipeMetaLine(name)
+      ) {
         return {
           name,
           amount: parseAmount(countName[1].replace(/\s+/g, " ").trim()),
@@ -245,6 +249,101 @@ export function smartParseIngredient(raw: string): Ingredient {
 
   // Unparsed — keep exact text so nothing is lost
   return { name: finalizeName(original), amount: 1, unit: "", aisle: guessAisle(original) };
+}
+
+/** Pure duration / clock fragments — never food. */
+export function isTimeOnlyLine(line: string): boolean {
+  const t = cleanIngredientText(line)
+    .replace(/^[•*\-–—]\s*/, "")
+    .trim();
+  if (!t) return true;
+
+  // Bare time tokens: "хв", "год", "min", "h"
+  // Avoid JS \b — it does not treat Cyrillic as word chars.
+  if (
+    /^(?:хв\.?|хвилин[аи]?|год\.?|годин[аи]?|min(?:ute)?s?|hrs?|hours?|h)$/i.test(t)
+  ) {
+    return true;
+  }
+
+  // "15 хв", "1 год", "1h 15min", "год 15 хв", "1 год 15 хв"
+  if (
+    /^(?:\d+\s*)?(?:год\.?|годин[аи]?|hrs?|hours?|h)?\s*\d+\s*(?:хв\.?|хвилин[аи]?|min(?:ute)?s?)$/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /^\d+\s*(?:год\.?|годин[аи]?|hrs?|hours?|h)(?:\s+\d+\s*(?:хв\.?|хвилин[аи]?|min(?:ute)?s?))?$/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  if (/^(?:год\.?|годин[аи]?|hrs?|hours?)\s+\d+\s*(?:хв\.?|хвилин[аи]?|min(?:ute)?s?)$/i.test(t)) {
+    return true;
+  }
+  if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Recipe-card chrome: difficulty, time labels, how-to titles, servings — not edible.
+ */
+export function isRecipeMetaLine(line: string): boolean {
+  const t = cleanIngredientText(line).replace(/[:：]\s*$/, "").trim();
+  if (!t) return true;
+  if (isTimeOnlyLine(t)) return true;
+
+  const end = String.raw`(?=\s|$|[:：])`;
+
+  if (
+    new RegExp(
+      `^(?:як\\s+приготувати|як\\s+зробити|як\\s+смачно|рецепт\\s+приготування|how\\s+to\\s+(?:make|cook|prepare)|recipe\\s+for)${end}`,
+      "i",
+    ).test(t)
+  ) {
+    return true;
+  }
+
+  if (
+    new RegExp(
+      `^(?:складність|рівень(?:\\s+складності)?|difficulty|level|dificultad|dificultat)${end}`,
+      "i",
+    ).test(t)
+  ) {
+    return true;
+  }
+
+  if (
+    new RegExp(
+      `^(?:загальний\\s+час|час\\s+приготування|час\\s+підготовки|час\\s+готування|підготовка|розробка|відпочинок|маринування|охолодження|випікання|варіння|смаження|prep(?:\\s*time)?|cook(?:\\s*time)?|total(?:\\s*time)?|preparation|rest(?:ing)?(?:\\s*time)?|marinat(?:e|ing)|cooling|baking|elaboration|elaboraci[oó]n|tiempo\\s+total)${end}`,
+      "i",
+    ).test(t)
+  ) {
+    return true;
+  }
+
+  if (/^(?:складність|difficulty|рівень|загальний\s+час|prep|cook|total)\s*[:：]/i.test(t)) {
+    return true;
+  }
+
+  if (
+    new RegExp(
+      `^(?:порці[ії]|кількість\\s+порцій|на\\s+\\d+\\s*(?:осіб|персон)|serves?|servings?|yield|калорі[їй]|kcal|calories?|енергетична\\s+цінність)${end}`,
+      "i",
+    ).test(t)
+  ) {
+    return true;
+  }
+
+  if (/^(?:легк[аи]|середн(?:я|ій)|складн[аи]|easy|medium|hard|difficult|simple)$/i.test(t)) {
+    return true;
+  }
+
+  return false;
 }
 
 /** News sidebars / related articles that follow recipes on media sites. */
@@ -286,6 +385,7 @@ export function isChromeIngredient(line: string): boolean {
   if (t.length < 2) return true;
   if (t.length > 240) return true;
   if (isNewsFeedLine(t)) return true;
+  if (isRecipeMetaLine(t)) return true;
   if (/^https?:\/\//i.test(t)) return true;
   if (/^\[[^\]]+\]\([^)]+\)$/.test(t)) return true;
   if (
@@ -322,7 +422,16 @@ export function isChromeIngredient(line: string): boolean {
 }
 
 export function hasQuantitySignal(item: Ingredient): boolean {
-  if (item.unit?.trim()) return true;
+  const label = [item.amount && item.unit ? `${item.amount} ${item.unit}` : "", item.name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  if (isRecipeMetaLine(item.name) || isRecipeMetaLine(label) || isTimeOnlyLine(label)) return false;
+  if (item.unit?.trim()) {
+    // Time leftovers mistakenly stored as unit
+    if (/^(?:хв|год|min|h|hrs?)$/i.test(item.unit.trim())) return false;
+    return true;
+  }
   if (item.amount > 0 && item.amount !== 1) return true;
   return /\d/.test(item.name);
 }
