@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { DRINK_SUBGROUPS, RECIPE_GROUPS, suggestCategoryName } from "@/lib/ai";
-import { formatIngredientDisplay, smartParseIngredient } from "@/lib/ingredients";
+import { smartParseIngredient } from "@/lib/ingredients";
 import { useKitchenStore } from "@/lib/store";
 import type { Ingredient, MealType, RecipeStep } from "@/lib/types";
 import { MEAL_LABELS, cn } from "@/lib/utils";
@@ -369,73 +369,71 @@ export default function EditRecipePage({
               </button>
             </div>
             <div className="space-y-2">
-              <div className="grid grid-cols-[72px_72px_1fr_36px] gap-2 px-1 text-[11px] uppercase tracking-wide text-ink-soft">
+              <div className="grid grid-cols-[4.5rem_4.5rem_minmax(0,1fr)_2.25rem] gap-2 px-1 text-[11px] uppercase tracking-wide text-ink-soft">
                 <span>К-сть</span>
                 <span>Од.</span>
                 <span>Назва</span>
                 <span />
               </div>
               {ingredients.map((ing, idx) => (
-                <div key={idx} className="space-y-1">
-                  <div className="grid grid-cols-[72px_72px_1fr_36px] gap-2">
-                    <input
-                      type="number"
-                      step="any"
-                      value={ing.amount}
-                      onChange={(e) => {
-                        const next = [...ingredients];
-                        next[idx] = { ...ing, amount: Number(e.target.value) || 0 };
-                        setIngredients(next);
-                      }}
-                      className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
-                    />
-                    <input
-                      value={ing.unit}
-                      onChange={(e) => {
-                        const next = [...ingredients];
-                        next[idx] = { ...ing, unit: e.target.value };
-                        setIngredients(next);
-                      }}
-                      className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
-                    />
-                    <input
-                      value={ing.name}
-                      onChange={(e) => {
-                        const next = [...ingredients];
-                        next[idx] = { ...ing, name: e.target.value };
-                        setIngredients(next);
-                      }}
-                      onBlur={(e) => {
-                        const raw = e.target.value.trim();
-                        if (
-                          !raw ||
-                          !(
-                            /^[\d¼½¾⅓⅔]/.test(raw) ||
-                            /\d+\s*(?:g|kg|ml|l|г|кг|мл|л|ст\.?\s*л|ч\.?\s*л)\b/i.test(raw)
-                          )
-                        ) {
-                          return;
-                        }
-                        const next = [...ingredients];
-                        next[idx] = smartParseIngredient(raw);
-                        setIngredients(next);
-                      }}
-                      className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
-                    />
-                    <button
-                      type="button"
-                      aria-label="Видалити"
-                      onClick={() =>
-                        setIngredients(ingredients.filter((_, i) => i !== idx))
+                <div
+                  key={idx}
+                  className="grid grid-cols-[4.5rem_4.5rem_minmax(0,1fr)_2.25rem] items-center gap-2"
+                >
+                  <input
+                    type="number"
+                    step="any"
+                    value={ing.amount}
+                    onChange={(e) => {
+                      const next = [...ingredients];
+                      next[idx] = { ...ing, amount: Number(e.target.value) || 0 };
+                      setIngredients(next);
+                    }}
+                    className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
+                  />
+                  <input
+                    value={ing.unit}
+                    onChange={(e) => {
+                      const next = [...ingredients];
+                      next[idx] = { ...ing, unit: e.target.value };
+                      setIngredients(next);
+                    }}
+                    className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
+                  />
+                  <input
+                    value={ing.name}
+                    onChange={(e) => {
+                      const next = [...ingredients];
+                      next[idx] = { ...ing, name: e.target.value };
+                      setIngredients(next);
+                    }}
+                    onBlur={(e) => {
+                      const raw = e.target.value.trim();
+                      if (
+                        !raw ||
+                        !(
+                          /^[\d¼½¾⅓⅔]/.test(raw) ||
+                          /\d+\s*(?:g|kg|ml|l|г|кг|мл|л|ст\.?\s*л|ч\.?\s*л)\b/i.test(raw)
+                        )
+                      ) {
+                        return;
                       }
-                      className="flex items-center justify-center text-ink-soft hover:text-amber"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                  {ing.name && (
-                    <p className="px-1 text-xs text-ink-soft">{formatIngredientDisplay(ing)}</p>
-                  )}
+                      const next = [...ingredients];
+                      next[idx] = smartParseIngredient(raw);
+                      setIngredients(next);
+                    }}
+                    className="min-w-0 w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Видалити"
+                    onClick={() =>
+                      setIngredients(ingredients.filter((_, i) => i !== idx))
+                    }
+                    className="flex items-center justify-center text-ink-soft hover:text-amber"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
                 </div>
               ))}
             </div>
