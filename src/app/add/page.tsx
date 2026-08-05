@@ -84,7 +84,13 @@ function AddRecipeInner() {
     ingredients: Ingredient[];
     steps: RecipeStep[];
     warnings: string[];
+    categoryName?: string;
+    subcategoryName?: string;
+    mealTypes?: MealType[];
+    aiUsed?: boolean;
   }) {
+    const aiCategory = r.categoryName?.trim() || null;
+
     setDraft({
       title: r.title,
       description: r.description,
@@ -95,14 +101,16 @@ function AddRecipeInner() {
       cookTimeMinutes: r.cookTimeMinutes,
       servings: r.servings,
       visibility: "shared",
-      mealTypes: ["dinner"],
+      mealTypes:
+        r.mealTypes && r.mealTypes.length > 0 ? r.mealTypes : ["dinner"],
       ingredients: r.ingredients.length
         ? r.ingredients
         : [{ name: "", amount: 1, unit: "г", aisle: "produce" }],
       steps: r.steps.length ? r.steps : [{ order: 1, text: "" }],
       warnings: r.warnings || [],
-      categoryName: null,
-      drinkSubgroup: null,
+      categoryName: aiCategory,
+      drinkSubgroup:
+        aiCategory === "Напої" ? r.subcategoryName?.trim() || null : null,
     });
   }
 
@@ -132,6 +140,10 @@ function AddRecipeInner() {
           ingredients: Ingredient[];
           steps: RecipeStep[];
           warnings: string[];
+          categoryName?: string;
+          subcategoryName?: string;
+          mealTypes?: MealType[];
+          aiUsed?: boolean;
         };
         error?: string;
       };
@@ -176,6 +188,10 @@ function AddRecipeInner() {
           ingredients: Ingredient[];
           steps: RecipeStep[];
           warnings: string[];
+          categoryName?: string;
+          subcategoryName?: string;
+          mealTypes?: MealType[];
+          aiUsed?: boolean;
         };
         error?: string;
       };
@@ -414,12 +430,20 @@ function AddRecipeInner() {
 
       {loading && !draft && (
         <p className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
-          <Loader2 className="size-4 animate-spin" /> Обробляю…
+          <Loader2 className="size-4 animate-spin" /> Читаю рецепт і перевіряю ШІ…
         </p>
       )}
 
       {draft && (
         <section className="mt-6 space-y-5">
+          {draft.warnings.some((w) => /ШІ|Gemini|евристик/i.test(w)) && (
+            <p className="text-xs text-ink-soft">
+              {draft.warnings.some((w) => /Оброблено ШІ/i.test(w))
+                ? "ШІ переглянув картку: інгредієнти, кроки й категорію можна ще підправити вручну."
+                : "ШІ на сервері не активний або тимчасово недоступний — спрацювала запасна логіка."}
+            </p>
+          )}
+
           {draft.warnings.length > 0 && (
             <div className="rounded-xl border border-amber/40 bg-amber-soft/50 px-4 py-3 text-sm text-leaf-deep">
               {draft.warnings.map((w) => (
