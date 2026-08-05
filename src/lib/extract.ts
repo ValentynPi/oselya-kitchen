@@ -147,15 +147,24 @@ function extractJsonLdRecipes(html: string): Record<string, unknown>[] {
 function instructionsToSteps(instructionsRaw: unknown): RecipeStep[] {
   if (!instructionsRaw) return [];
   if (typeof instructionsRaw === "string") {
-    return instructionsRaw
+    const cleaned = stripHtml(instructionsRaw);
+    // Prefer numbered steps when present
+    const numbered = [
+      ...cleaned.matchAll(/(?:^|\n)\s*\d+[.)]\s*([^\n]+)/g),
+    ].map((m) => m[1].trim());
+    if (numbered.length >= 2) {
+      return numbered.map((text, i) => ({ order: i + 1, text }));
+    }
+    return cleaned
       .split(/\n+|(?<=\.)\s+(?=[A-ZА-ЯІЇЄҐ])/)
-      .map(stripHtml)
-      .filter(Boolean)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 8)
       .map((text, i) => ({ order: i + 1, text }));
   }
   if (Array.isArray(instructionsRaw) && instructionsRaw.every((x) => typeof x === "string")) {
     return (instructionsRaw as string[])
       .map(stripHtml)
+      .map((t) => t.trim())
       .filter(Boolean)
       .map((text, i) => ({ order: i + 1, text }));
   }
@@ -164,22 +173,55 @@ function instructionsToSteps(instructionsRaw: unknown): RecipeStep[] {
       if (!item) return [];
       if (typeof item === "string") return [stripHtml(item)];
       if (typeof item === "object") {
-        const obj = item as { text?: string; itemListElement?: unknown; name?: string };
-        if (obj.itemListElement) {
-          return asArray(obj.itemListElement).map((el) => {
-            if (typeof el === "string") return stripHtml(el);
-            if (el && typeof el === "object" && "text" in el) {
-              return stripHtml(String((el as { text: string }).text));
+        const obj = item as {
+          text?: string;
+          itemListElement?: unknown;
+          name?: string;
+          "@type"?: string | string[];
+        };
+        const types = asArray(obj["@type"]).map((t) => String(t).toLowerCase());
+        // HowToSection wraps steps
+        if (obj.itemListElement || types.some((t) => t.includes("howtosection"))) {
+          return asArray(obj.itemListElement).flatMap((el) => {
+            if (typeof el === "string") return [stripHtml(el)];
+            if (el && typeof el === "object") {
+              const step = el as { text?: string; name?: string; itemListElement?: unknown };
+              if (step.itemListElement) {
+                return asArray(step.itemListElement).map((inner) => {
+                  if (typeof inner === "string") return stripHtml(inner);
+                  if (inner && typeof inner === "object" && "text" in inner) {
+                    return stripHtml(String((inner as { text: string }).text));
+                  }
+                  return "";
+                });
+              }
+              return [stripHtml(String(step.text || step.name || ""))];
             }
-            return "";
+            return [];
           });
         }
         return [stripHtml(String(obj.text || obj.name || ""))];
       }
       return [];
     })
-    .filter(Boolean)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 3)
     .map((text, i) => ({ order: i + 1, text }));
+}
+
+const PLACEHOLDER_STEP =
+  /доповніть кроки|перевірте джерело|відкрийте джерело|виконайте кроки приготування|опишіть кроки|вставте текст/i;
+
+function isPlaceholderStep(text: string): boolean {
+  return PLACEHOLDER_STEP.test(text);
+}
+
+function realSteps(recipe: ExtractedRecipe): RecipeStep[] {
+  return recipe.steps.filter((s) => s.text && !isPlaceholderStep(s.text) && s.text.length >= 8);
+}
+
+function hasRealSteps(recipe: ExtractedRecipe): boolean {
+  return realSteps(recipe).length >= 2;
 }
 
 function fromJsonLd(data: Record<string, unknown>, url: string, host: string): ExtractedRecipe {
@@ -297,7 +339,7 @@ function ingredientScore(recipe: ExtractedRecipe): number {
 }
 
 function stepScore(recipe: ExtractedRecipe): number {
-  return recipe.steps.filter((s) => s.text.length > 20).length * 3;
+  return realSteps(recipe).filter((s) => s.text.length > 20).length * 3;
 }
 
 function scoreRecipe(recipe: ExtractedRecipe): number {
@@ -308,7 +350,7 @@ function scoreRecipe(recipe: ExtractedRecipe): number {
   score += ingredientScore(recipe);
   score += stepScore(recipe);
   if (recipe.ingredients.filter(hasQuantitySignal).length >= 3) score += 8;
-  if (recipe.steps.length >= 3) score += 4;
+  if (realSteps(recipe).length >= 3) score += 4;
   return score;
 }
 
@@ -340,7 +382,7 @@ function sanitizeRecipe(recipe: ExtractedRecipe): ExtractedRecipe {
         .replace(/^\[([^\]]+)\]\([^)]+\)\s*/g, "$1 ")
         .trim(),
     }))
-    .filter((s) => s.text && !isObviouslyNotStep(s.text));
+    .filter((s) => s.text && !isPlaceholderStep(s.text) && !isObviouslyNotStep(s.text));
 
   return {
     ...recipe,
@@ -370,7 +412,11 @@ function pickBest(candidates: ExtractedRecipe[]): ExtractedRecipe | null {
   const bestIngredients = [...cleaned].sort(
     (a, b) => ingredientScore(b.r) - ingredientScore(a.r),
   )[0].r;
-  const bestSteps = [...cleaned].sort((a, b) => stepScore(b.r) - stepScore(a.r))[0].r;
+  const bestSteps = [...cleaned].sort((a, b) => {
+    const stepDiff = stepScore(b.r) - stepScore(a.r);
+    if (stepDiff !== 0) return stepDiff;
+    return realSteps(b.r).length - realSteps(a.r).length;
+  })[0].r;
 
   const warnings = Array.from(
     new Set([
@@ -411,21 +457,75 @@ function heuristicExtract(html: string, url: string, host: string): ExtractedRec
   ];
   const stepBlocks = [
     ...html.matchAll(
-      /<(?:ul|ol|div)[^>]*(?:instruction|direction|wprm-recipe-instruction|tasty-recipes-instructions|method)[^>]*>([\s\S]*?)<\/(?:ul|ol|div)>/gi,
+      /<(?:ul|ol|div|section)[^>]*(?:instruction|direction|wprm-recipe-instruction|tasty-recipes-instructions|method|preparation|recipe-steps?)[^>]*>([\s\S]*?)<\/(?:ul|ol|div|section)>/gi,
     ),
   ];
 
-  const liFrom = (blocks: RegExpMatchArray[]) =>
+  const liFrom = (blocks: RegExpMatchArray[], maxLen = 300) =>
     blocks
       .flatMap((b) => [...b[1].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)])
       .map((m) => stripHtml(m[1]))
-      .filter((t) => t.length > 1 && t.length < 300 && !isJunkLine(t));
+      .filter((t) => t.length > 1 && t.length < maxLen && !isJunkLine(t));
+
+  /** Steps often live in <p> / <div class="…instruction-text">, not only <li>. */
+  const stepsFromBlocks = (blocks: RegExpMatchArray[]): string[] => {
+    const fromLi = liFrom(blocks, 1200);
+    if (fromLi.length >= 2) return fromLi;
+
+    const fromTagged = blocks.flatMap((b) => {
+      const chunk = b[1];
+      const texts = [
+        ...chunk.matchAll(
+          /<(?:li|p|div)[^>]*(?:instruction|direction|step|wprm-recipe-instruction-text)[^>]*>([\s\S]*?)<\/(?:li|p|div)>/gi,
+        ),
+        ...chunk.matchAll(/<(?:li|p)[^>]*>([\s\S]*?)<\/(?:li|p)>/gi),
+      ].map((m) => stripHtml(m[1]));
+      return texts;
+    });
+
+    const cleaned = fromTagged
+      .map((t) => t.replace(/^\d+[.)]\s*/, "").trim())
+      .filter(
+        (t) =>
+          t.length > 12 &&
+          t.length < 1200 &&
+          !isJunkLine(t) &&
+          !isChromeIngredient(t) &&
+          !isPlaceholderStep(t) &&
+          !isObviouslyNotStep(t),
+      );
+
+    // Dedupe while preserving order
+    const seen = new Set<string>();
+    return cleaned.filter((t) => {
+      const key = t.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  // Dedicated WPRM / Tasty Recipes instruction text nodes (may sit outside matched blocks)
+  const pluginSteps = [
+    ...html.matchAll(
+      /<(?:div|span|p|li)[^>]*(?:wprm-recipe-instruction-text|tasty-recipes-instructions|instruction-text|recipe__step)[^>]*>([\s\S]*?)<\/(?:div|span|p|li)>/gi,
+    ),
+  ]
+    .map((m) => stripHtml(m[1]).replace(/^\d+[.)]\s*/, "").trim())
+    .filter(
+      (t) =>
+        t.length > 12 &&
+        t.length < 1200 &&
+        !isJunkLine(t) &&
+        !isChromeIngredient(t) &&
+        !isObviouslyNotStep(t),
+    );
 
   let ingredients = filterIngredientObjects(liFrom(ingredientBlocks).map(parseIngredientLine));
-  const steps = liFrom(stepBlocks)
-    .filter((t) => t.length > 3 && t.length < 400 && !isChromeIngredient(t))
-    .slice(0, 40)
-    .map((text, i) => ({ order: i + 1, text }));
+  let stepTexts = stepsFromBlocks(stepBlocks);
+  if (pluginSteps.length > stepTexts.length) stepTexts = pluginSteps;
+
+  const steps = stepTexts.slice(0, 40).map((text, i) => ({ order: i + 1, text }));
 
   // Only scan global <li> if we found nothing in ingredient-specific blocks —
   // and only keep lines that look measured (avoids nav menus).
@@ -486,11 +586,12 @@ function parseReadableMarkdown(text: string, url: string, host: string): Extract
     .replace(/^Title:\s*/i, "")
     .slice(0, 160);
 
+  // Avoid \b after Cyrillic — JS word boundaries treat Ukrainian letters poorly.
   const ingMatch = body.match(
-    /(?:^|\n)\s*(?:#{1,3}\s*)?(?:\*\*)?(?:ingredients?|інгредієнти|склад)(?:\*\*)?\s*:?\s*\n([\s\S]*?)(?=\n\s*(?:#{1,3}\s*)?(?:\*\*)?(?:instructions?|directions?|method|steps?|preparation|nutrition|notes|tips|equipment|related|comments?|reviews?|you may also|more recipes|приготування|кроки|спосіб|харчов)(?:\*\*)?\b|$)/i,
+    /(?:^|\n)\s*(?:#{1,3}\s*)?(?:\*\*)?(?:ingredients?|інгредієнти|склад)(?:\*\*)?\s*:?\s*\n([\s\S]*?)(?=\n\s*(?:#{1,3}\s*)?(?:\*\*)?(?:instructions?|directions?|method|steps?|preparation|nutrition|notes|tips|equipment|related|comments?|reviews?|you may also|more recipes|приготування|кроки|спосіб|харчов)(?:\*\*)?(?=\s|$|[:：])|$)/i,
   );
   const stepMatch = body.match(
-    /(?:^|\n)\s*(?:#{1,3}\s*)?(?:\*\*)?(?:instructions?|directions?|method|steps?|preparation|приготування|кроки|спосіб)(?:\*\*)?\s*:?\s*\n([\s\S]*?)(?=\n\s*(?:#{1,3}\s*)?(?:\*\*)?(?:nutrition|notes|tips|ingredients?|related|comments?|reviews?|equipment|інгредієнти|харчов)\b|$)/i,
+    /(?:^|\n)\s*(?:#{1,3}\s*)?(?:\*\*)?(?:instructions?|directions?|method|steps?|preparation|приготування|кроки|спосіб)(?:\*\*)?\s*:?\s*\n([\s\S]*?)(?=\n\s*(?:#{1,3}\s*)?(?:\*\*)?(?:nutrition|notes|tips|ingredients?|related|comments?|reviews?|equipment|інгредієнти|харчов)(?:\*\*)?(?=\s|$|[:：])|$)/i,
   );
 
   let ingredients: Ingredient[] = [];
@@ -504,8 +605,16 @@ function parseReadableMarkdown(text: string, url: string, host: string): Extract
     steps = stepMatch[1]
       .split("\n")
       .map((l) => l.replace(/^[-*•]\s*/, "").replace(/^\d+[.)]\s*/, "").trim())
-      .filter((l) => l && !/^#{1,3}/.test(l) && !isJunkLine(l) && l.length > 3 && l.length < 400)
-      .slice(0, 30)
+      .filter(
+        (l) =>
+          l &&
+          !/^#{1,3}/.test(l) &&
+          !isJunkLine(l) &&
+          !isPlaceholderStep(l) &&
+          l.length > 3 &&
+          l.length < 1200,
+      )
+      .slice(0, 40)
       .map((text, i) => ({ order: i + 1, text }));
   }
 
@@ -515,7 +624,7 @@ function parseReadableMarkdown(text: string, url: string, host: string): Extract
     if (idx >= 0) {
       const window = body.slice(idx, idx + 2500);
       const stop = window.search(
-        /\n\s*(?:#{1,3}\s*)?(?:instructions?|directions?|method|steps?|preparation|приготування|кроки)\b/i,
+        /\n\s*(?:#{1,3}\s*)?(?:instructions?|directions?|method|steps?|preparation|приготування|кроки)(?=\s|$|[:：])/i,
       );
       const chunk = stop > 0 ? window.slice(0, stop) : window;
       ingredients = filterIngredientObjects(chunk.split("\n").map(parseIngredientLine));
@@ -524,15 +633,22 @@ function parseReadableMarkdown(text: string, url: string, host: string): Extract
 
   if (steps.length < 2) {
     const idx = body.search(
-      /(?:instructions?|directions?|method|steps?|preparation|приготування|кроки)\s*:?/i,
+      /(?:instructions?|directions?|method|steps?|preparation|приготування|кроки)(?=\s|$|[:：])/i,
     );
     if (idx >= 0) {
-      const window = body.slice(idx, idx + 4000);
+      const window = body.slice(idx, idx + 8000);
       const numbered = window
         .split("\n")
         .map((l) => l.replace(/^\d+[.)]\s+/, "").replace(/^[-*•]\s+/, "").trim())
-        .filter((l) => l.length > 15 && l.length < 400 && !isJunkLine(l))
-        .slice(0, 25);
+        .filter(
+          (l) =>
+            l.length > 15 &&
+            l.length < 1200 &&
+            !isJunkLine(l) &&
+            !isPlaceholderStep(l) &&
+            !isObviouslyNotStep(l),
+        )
+        .slice(0, 40);
       if (numbered.length >= 2) {
         steps = numbered.map((text, i) => ({ order: i + 1, text }));
       }
@@ -624,9 +740,8 @@ async function fetchViaJina(url: string): Promise<string | null> {
 
 function extractFromHtml(html: string, url: string, host: string): ExtractedRecipe | null {
   const candidates: ExtractedRecipe[] = [];
-  const jsonLd = extractJsonLdRecipes(html);
-  if (jsonLd[0]) {
-    const recipe = fromJsonLd(jsonLd[0], url, host);
+  for (const node of extractJsonLdRecipes(html)) {
+    const recipe = fromJsonLd(node, url, host);
     if (!recipe.imageUrl) recipe.imageUrl = metaContent(html, "og:image");
     candidates.push(recipe);
   }
@@ -700,32 +815,42 @@ export async function extractRecipeFromUrl(url: string): Promise<ExtractedRecipe
   }
 
   const bestSoFar = pickBest(candidates);
-  if (bestSoFar && scoreRecipe(bestSoFar) >= 8) return bestSoFar;
+  // Strong ingredients alone must not skip Archive/Jina when steps are still placeholders.
+  const ingredientsStrong =
+    !!bestSoFar && bestSoFar.ingredients.filter(hasQuantitySignal).length >= 3;
+  if (bestSoFar && scoreRecipe(bestSoFar) >= 8 && hasRealSteps(bestSoFar)) return bestSoFar;
+  // If ingredients look solid but steps are missing, still try readable sources for steps.
+  const needBetterSteps = !bestSoFar || !hasRealSteps(bestSoFar);
 
-  // 3) Archive
-  try {
-    const archived = await fetchViaArchive(finalUrl);
-    if (archived) {
-      const recipe = extractFromHtml(archived, finalUrl, host);
-      if (recipe) {
-        candidates.push({
-          ...recipe,
-          warnings: [
-            ...recipe.warnings,
-            "Сторінку прочитано через архівний знімок — перевірте актуальність.",
-          ],
-        });
+  // 3) Archive — skip when we already have real steps (saves time)
+  if (needBetterSteps || !ingredientsStrong) {
+    try {
+      const archived = await fetchViaArchive(finalUrl);
+      if (archived) {
+        const recipe = extractFromHtml(archived, finalUrl, host);
+        if (recipe) {
+          candidates.push({
+            ...recipe,
+            warnings: [
+              ...recipe.warnings,
+              "Сторінку прочитано через архівний знімок — перевірте актуальність.",
+            ],
+          });
+        }
       }
+    } catch {
+      /* continue */
     }
-  } catch {
-    /* continue */
   }
 
-  // 4) Readable proxy — always try; return best effort even if imperfect
-  const readable = await fetchViaJina(finalUrl);
-  if (readable) {
-    const parsedMd = parseReadableMarkdown(readable, finalUrl, host);
-    if (parsedMd) candidates.push(parsedMd);
+  // 4) Readable proxy — always try when steps are weak; otherwise still useful as fallback
+  let readable: string | null = null;
+  if (needBetterSteps || !pickBest(candidates)) {
+    readable = await fetchViaJina(finalUrl);
+    if (readable) {
+      const parsedMd = parseReadableMarkdown(readable, finalUrl, host);
+      if (parsedMd) candidates.push(parsedMd);
+    }
   }
 
   const best = pickBest(candidates);
