@@ -44,6 +44,7 @@ interface KitchenState {
     > & { categoryName?: string; subcategoryName?: string },
   ) => Promise<Recipe>;
   deleteRecipe: (id: string) => Promise<void>;
+  addCategory: (name: string) => Promise<Category>;
   importFromUrl: (url: string) => Promise<Recipe>;
   setVisibility: (recipeId: string, visibility: Visibility) => Promise<void>;
   addToPlan: (date: string, mealType: MealType, recipeId: string, servings: number) => void;
@@ -419,6 +420,52 @@ export const useKitchenStore = create<KitchenState>()(
         } catch {
           set({ syncError: "Видалено на цьому пристрої (офлайн)" });
         }
+      },
+
+      addCategory: async (name) => {
+        const trimmed = name.trim().replace(/\s+/g, " ");
+        if (!trimmed) throw new Error("Вкажіть назву категорії");
+        if (trimmed.length > 40) throw new Error("Назва задовга (до 40 символів)");
+
+        const ensured = ensureCategory(get().categories, trimmed);
+        set({ categories: ensured.categories, syncStatus: "ready" });
+        const created = ensured.categories.find((c) => c.id === ensured.categoryId)!;
+
+        try {
+          const res = await fetch("/api/categories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: trimmed }),
+          });
+          const data = (await res.json()) as {
+            kitchen?: { categories: Category[]; recipes: Recipe[] };
+            category?: Category;
+            error?: string;
+          };
+
+          if (res.ok && data.kitchen) {
+            set({
+              categories: mergeById(data.kitchen.categories, get().categories),
+              syncStatus: "ready",
+              syncError: null,
+            });
+            return (
+              data.category ||
+              get().categories.find(
+                (c) => !c.parentId && c.name.toLowerCase() === trimmed.toLowerCase(),
+              ) ||
+              created
+            );
+          }
+
+          if (!res.ok) {
+            set({ syncError: data.error || "Категорію збережено лише на цьому пристрої" });
+          }
+        } catch {
+          set({ syncError: "Категорію збережено на цьому пристрої (офлайн)" });
+        }
+
+        return created;
       },
 
       importFromUrl: async (url) => {

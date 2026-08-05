@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ClipboardPaste, Link2, Loader2, PenLine, Plus, Trash2, Sparkles } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
-import { DRINK_SUBGROUPS, RECIPE_GROUPS, suggestCategoryName } from "@/lib/ai";
+import { CategoryPicker } from "@/components/CategoryPicker";
+import { suggestCategoryName } from "@/lib/ai";
 import { smartParseIngredient } from "@/lib/ingredients";
 import { useKitchenStore } from "@/lib/store";
 import type { Ingredient, MealType, RecipeStep, Visibility } from "@/lib/types";
@@ -49,6 +50,7 @@ const emptyDraft = (): Draft => ({
 
 function AddRecipeInner() {
   const addRecipe = useKitchenStore((s) => s.addRecipe);
+  const categories = useKitchenStore((s) => s.categories);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -426,90 +428,15 @@ function AddRecipeInner() {
             </div>
           )}
 
-          <div className="rounded-xl bg-mist/80 px-4 py-3">
-            <p className="text-sm text-ink-soft">
-              Група:{" "}
-              <span className="font-medium text-leaf">
-                {draft.categoryName ?? `Авто · ${predictedCategory ?? "…"}`}
-              </span>
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setDraft({ ...draft, categoryName: null, drinkSubgroup: null })
-                }
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs",
-                  draft.categoryName === null
-                    ? "bg-leaf text-cream"
-                    : "bg-surface text-ink-soft ring-1 ring-line",
-                )}
-              >
-                Авто
-              </button>
-              {RECIPE_GROUPS.map((group) => (
-                <button
-                  key={group}
-                  type="button"
-                  onClick={() =>
-                    setDraft({
-                      ...draft,
-                      categoryName: group,
-                      drinkSubgroup: group === "Напої" ? draft.drinkSubgroup : null,
-                    })
-                  }
-                  className={cn(
-                    "rounded-lg px-3 py-1.5 text-xs",
-                    draft.categoryName === group
-                      ? "bg-leaf text-cream"
-                      : "bg-surface text-ink-soft ring-1 ring-line",
-                  )}
-                >
-                  {group}
-                </button>
-              ))}
-            </div>
-            {(draft.categoryName === "Напої" ||
-              (!draft.categoryName && predictedCategory === "Напої")) && (
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-line/50 pt-3">
-                <span className="w-full text-xs text-ink-soft">Підгрупа напоїв</span>
-                <button
-                  type="button"
-                  onClick={() => setDraft({ ...draft, drinkSubgroup: null })}
-                  className={cn(
-                    "rounded-lg px-3 py-1.5 text-xs",
-                    draft.drinkSubgroup === null
-                      ? "bg-leaf text-cream"
-                      : "bg-surface text-ink-soft ring-1 ring-line",
-                  )}
-                >
-                  Без підгрупи
-                </button>
-                {DRINK_SUBGROUPS.map((sub) => (
-                  <button
-                    key={sub}
-                    type="button"
-                    onClick={() =>
-                      setDraft({
-                        ...draft,
-                        categoryName: draft.categoryName ?? "Напої",
-                        drinkSubgroup: sub,
-                      })
-                    }
-                    className={cn(
-                      "rounded-lg px-3 py-1.5 text-xs",
-                      draft.drinkSubgroup === sub
-                        ? "bg-leaf text-cream"
-                        : "bg-surface text-ink-soft ring-1 ring-line",
-                    )}
-                  >
-                    {sub}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <CategoryPicker
+            value={draft.categoryName}
+            predicted={predictedCategory}
+            extraGroups={categories.filter((c) => !c.parentId).map((c) => c.name)}
+            drinkSubgroup={draft.drinkSubgroup}
+            onChange={(categoryName, drinkSubgroup) =>
+              setDraft({ ...draft, categoryName, drinkSubgroup })
+            }
+          />
 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

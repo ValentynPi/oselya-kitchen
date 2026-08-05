@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
-import { DRINK_SUBGROUPS, RECIPE_GROUPS, suggestCategoryName } from "@/lib/ai";
+import { CategoryPicker } from "@/components/CategoryPicker";
+import { suggestCategoryName } from "@/lib/ai";
 import { smartParseIngredient } from "@/lib/ingredients";
 import { useKitchenStore } from "@/lib/store";
 import type { Ingredient, MealType, RecipeStep } from "@/lib/types";
@@ -183,84 +184,17 @@ export default function EditRecipePage({
         </h1>
         <p className="mt-2 text-ink-soft">Змініть будь-які поля й збережіть — або видаліть картку.</p>
 
-        <div className="mt-4 rounded-xl bg-mist/80 px-4 py-3">
-          <p className="text-sm text-ink-soft">
-            Група:{" "}
-            <span className="font-medium text-leaf">
-              {categoryName ?? `Авто · ${predictedCategory ?? "…"}`}
-            </span>
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setCategoryName(null);
-                setDrinkSubgroup(null);
-              }}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-xs",
-                categoryName === null
-                  ? "bg-leaf text-cream"
-                  : "bg-surface text-ink-soft ring-1 ring-line",
-              )}
-            >
-              Авто
-            </button>
-            {RECIPE_GROUPS.map((group) => (
-              <button
-                key={group}
-                type="button"
-                onClick={() => {
-                  setCategoryName(group);
-                  if (group !== "Напої") setDrinkSubgroup(null);
-                }}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs",
-                  categoryName === group
-                    ? "bg-leaf text-cream"
-                    : "bg-surface text-ink-soft ring-1 ring-line",
-                )}
-              >
-                {group}
-              </button>
-            ))}
-          </div>
-          {(categoryName === "Напої" ||
-            (!categoryName && predictedCategory === "Напої")) && (
-            <div className="mt-3 flex flex-wrap gap-2 border-t border-line/50 pt-3">
-              <span className="w-full text-xs text-ink-soft">Підгрупа напоїв</span>
-              <button
-                type="button"
-                onClick={() => setDrinkSubgroup(null)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs",
-                  drinkSubgroup === null
-                    ? "bg-leaf text-cream"
-                    : "bg-surface text-ink-soft ring-1 ring-line",
-                )}
-              >
-                Без підгрупи
-              </button>
-              {DRINK_SUBGROUPS.map((sub) => (
-                <button
-                  key={sub}
-                  type="button"
-                  onClick={() => {
-                    setCategoryName(categoryName ?? "Напої");
-                    setDrinkSubgroup(sub);
-                  }}
-                  className={cn(
-                    "rounded-lg px-3 py-1.5 text-xs",
-                    drinkSubgroup === sub
-                      ? "bg-leaf text-cream"
-                      : "bg-surface text-ink-soft ring-1 ring-line",
-                  )}
-                >
-                  {sub}
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="mt-4">
+          <CategoryPicker
+            value={categoryName}
+            predicted={predictedCategory}
+            extraGroups={categories.filter((c) => !c.parentId).map((c) => c.name)}
+            drinkSubgroup={drinkSubgroup}
+            onChange={(nextCategory, nextDrink) => {
+              setCategoryName(nextCategory);
+              setDrinkSubgroup(nextDrink);
+            }}
+          />
         </div>
 
         <div className="mt-8 space-y-6">

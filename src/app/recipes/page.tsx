@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { useKitchenStore } from "@/lib/store";
 import { sortWithFavorites } from "@/lib/kitchen";
 import { RecipeCard } from "@/components/RecipeCard";
@@ -11,8 +12,13 @@ export default function RecipesPage() {
   const categories = useKitchenStore((s) => s.categories);
   const favorites = useKitchenStore((s) => s.favorites);
   const visibleRecipes = useKitchenStore((s) => s.visibleRecipes);
+  const addCategory = useKitchenStore((s) => s.addCategory);
   const [categoryId, setCategoryId] = useState<string>("all");
   const [mounted, setMounted] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => setMounted(true), []);
 
@@ -32,6 +38,23 @@ export default function RecipesPage() {
     }
     return sortWithFavorites(list, new Set(favorites));
   }, [mounted, categoryId, favorites, visibleRecipes, parents]);
+
+  async function createCategory() {
+    const name = newName.trim();
+    if (!name) return;
+    setSaving(true);
+    setError("");
+    try {
+      const created = await addCategory(name);
+      setCategoryId(created.id);
+      setNewName("");
+      setShowNew(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не вдалося створити");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <AuthGate>
@@ -81,7 +104,42 @@ export default function RecipesPage() {
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setShowNew((v) => !v)}
+            className="inline-flex items-center gap-1 rounded-lg bg-mist px-3 py-1.5 text-sm text-leaf ring-1 ring-line hover:ring-leaf"
+          >
+            <Plus className="size-3.5" />
+            Категорія
+          </button>
         </div>
+
+        {showNew && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void createCategory();
+                }
+              }}
+              placeholder="Нова категорія, напр. Гриль"
+              maxLength={40}
+              className="min-w-[14rem] flex-1 rounded-lg border border-line bg-cream/60 px-3 py-2 text-sm outline-none focus:border-leaf sm:max-w-xs"
+            />
+            <button
+              type="button"
+              disabled={saving || !newName.trim()}
+              onClick={() => void createCategory()}
+              className="rounded-lg bg-leaf px-3 py-2 text-sm text-cream disabled:opacity-40"
+            >
+              {saving ? "…" : "Створити"}
+            </button>
+            {error && <p className="w-full text-sm text-amber">{error}</p>}
+          </div>
+        )}
 
         {subs.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
