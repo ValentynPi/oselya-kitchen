@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { ensureCategory, maybeSplitCategory, parseImportUrl, suggestCategoryName, suggestDrinkSubgroup, suggestMealTypes } from "./ai";
 import { buildShoppingList } from "./kitchen";
-import { demoUser, initialCategories, initialRecipes } from "./seed";
+import { demoUser } from "./seed";
 import type {
   Category,
   MealPlanEntry,
@@ -28,8 +28,10 @@ interface KitchenState {
   syncError: string | null;
   signIn: () => void;
   signOut: () => void;
+  hydrateFromServer: () => Promise<void>;
+  /** @deprecated Prefer hydrateFromServer */
   hydrateShared: () => Promise<void>;
-  toggleFavorite: (recipeId: string) => void;
+  toggleFavorite: (recipeId: string) => Promise<void>;
   addRecipe: (
     input: Omit<Recipe, "id" | "createdAt" | "categoryId" | "authorId" | "authorName" | "visibility"> & {
       categoryName?: string;
@@ -47,11 +49,11 @@ interface KitchenState {
   addCategory: (name: string) => Promise<Category>;
   importFromUrl: (url: string) => Promise<Recipe>;
   setVisibility: (recipeId: string, visibility: Visibility) => Promise<void>;
-  addToPlan: (date: string, mealType: MealType, recipeId: string, servings: number) => void;
-  removeFromPlan: (entryId: string) => void;
-  generateShoppingList: () => void;
-  toggleShoppingItem: (id: string) => void;
-  addCustomShoppingItem: (name: string, amount: number, unit: string) => void;
+  addToPlan: (date: string, mealType: MealType, recipeId: string, servings: number) => Promise<void>;
+  removeFromPlan: (entryId: string) => Promise<void>;
+  generateShoppingList: () => Promise<void>;
+  toggleShoppingItem: (id: string) => Promise<void>;
+  addCustomShoppingItem: (name: string, amount: number, unit: string) => Promise<void>;
   pushSearchHistory: (query: string, kind: "text" | "ingredients") => void;
   clearSearchHistory: () => void;
   visibleRecipes: () => Recipe[];
@@ -61,113 +63,134 @@ function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function mergeById<T extends { id: string }>(primary: T[], secondary: T[]): T[] {
-  const map = new Map<string, T>();
-  for (const item of primary) map.set(item.id, item);
-  for (const item of secondary) {
-    if (!map.has(item.id)) map.set(item.id, item);
-  }
-  return [...map.values()];
+function familyIdOf(user: UserProfile | null): string {
+  return user?.familyId ?? demoUser.familyId;
 }
 
-function mergeRecipes(server: Recipe[], local: Recipe[]): Recipe[] {
-  const map = new Map<string, Recipe>();
-  for (const r of server) map.set(r.id, { ...r, visibility: "shared" });
-  for (const r of local) {
-    const existing = map.get(r.id);
-    if (!existing) {
-      map.set(r.id, { ...r, visibility: "shared" });
-      continue;
-    }
-    const localTs = Date.parse(r.createdAt) || 0;
-    const serverTs = Date.parse(existing.createdAt) || 0;
-    if (localTs > serverTs) map.set(r.id, { ...r, visibility: "shared" });
+function applyKitchen(
+  kitchen: { categories: Category[]; recipes: Recipe[] },
+  extra?: Partial<Pick<KitchenState, "favorites" | "mealPlan" | "shoppingList" | "syncError">>,
+) {
+  return {
+    categories: kitchen.categories,
+    recipes: kitchen.recipes.map((r) => ({ ...r, visibility: r.visibility ?? ("shared" as Visibility) })),
+    syncStatus: "ready" as const,
+    syncError: extra?.syncError ?? null,
+    ...(extra?.favorites !== undefined ? { favorites: extra.favorites } : {}),
+    ...(extra?.mealPlan !== undefined ? { mealPlan: extra.mealPlan } : {}),
+    ...(extra?.shoppingList !== undefined ? { shoppingList: extra.shoppingList } : {}),
+  };
+}
+
+async function putShoppingList(
+  familyId: string,
+  shoppingList: ShoppingItem[],
+): Promise<ShoppingItem[]> {
+  const res = await fetch("/api/shopping", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ familyId, shoppingList }),
+  });
+  const data = (await res.json()) as { shoppingList?: ShoppingItem[]; error?: string };
+  if (!res.ok || !data.shoppingList) {
+    throw new Error(data.error || "Не вдалося зберегти список покупок");
   }
-  return [...map.values()];
+  return data.shoppingList;
 }
 
 export const useKitchenStore = create<KitchenState>()(
   persist(
     (set, get) => ({
       user: null,
-      categories: initialCategories,
-      recipes: initialRecipes,
-      favorites: ["r1", "r3"],
-      mealPlan: [
-        {
-          id: "mp1",
-          date: nextWeekday(1),
-          mealType: "dinner",
-          recipeId: "r1",
-          servings: 4,
-        },
-        {
-          id: "mp2",
-          date: nextWeekday(1),
-          mealType: "breakfast",
-          recipeId: "r3",
-          servings: 4,
-        },
-        {
-          id: "mp3",
-          date: nextWeekday(2),
-          mealType: "dinner",
-          recipeId: "r2",
-          servings: 4,
-        },
-      ],
+      categories: [],
+      recipes: [],
+      favorites: [],
+      mealPlan: [],
       shoppingList: [],
       searchHistory: [],
       syncStatus: "idle",
       syncError: null,
 
-      signIn: () => set({ user: demoUser }),
-      signOut: () => set({ user: null }),
+      signIn: () => {
+        set({ user: demoUser });
+        void get().hydrateFromServer();
+      },
+      signOut: () => set({ user: null, favorites: [] }),
 
-      hydrateShared: async () => {
+      hydrateFromServer: async () => {
         const wasReady = get().syncStatus === "ready";
         if (!wasReady) set({ syncStatus: "loading", syncError: null });
+
+        const user = get().user;
+        const familyId = familyIdOf(user);
+
         try {
-          const res = await fetch("/api/recipes", { cache: "no-store" });
-          const data = (await res.json()) as {
+          const recipesReq = fetch("/api/recipes", { cache: "no-store" });
+          const mealPlanReq = fetch(
+            `/api/meal-plan?familyId=${encodeURIComponent(familyId)}`,
+            { cache: "no-store" },
+          );
+          const shoppingReq = fetch(
+            `/api/shopping?familyId=${encodeURIComponent(familyId)}`,
+            { cache: "no-store" },
+          );
+          const favoritesReq = user
+            ? fetch(`/api/favorites?userId=${encodeURIComponent(user.id)}`, {
+                cache: "no-store",
+              })
+            : null;
+
+          const [recipesRes, mealPlanRes, shoppingRes, favoritesRes] = await Promise.all([
+            recipesReq,
+            mealPlanReq,
+            shoppingReq,
+            favoritesReq,
+          ]);
+
+          const recipesData = (await recipesRes.json()) as {
             categories?: Category[];
             recipes?: Recipe[];
             error?: string;
           };
-          if (!res.ok) throw new Error(data.error || "Sync failed");
+          if (!recipesRes.ok) throw new Error(recipesData.error || "Sync failed");
 
-          const local = get();
-          const recipes = mergeRecipes(data.recipes ?? [], local.recipes);
-          const categories = mergeById(data.categories ?? [], local.categories);
+          const mealPlanData = (await mealPlanRes.json()) as {
+            mealPlan?: MealPlanEntry[];
+            error?: string;
+          };
+          if (!mealPlanRes.ok) throw new Error(mealPlanData.error || "Meal plan sync failed");
+
+          const shoppingData = (await shoppingRes.json()) as {
+            shoppingList?: ShoppingItem[];
+            error?: string;
+          };
+          if (!shoppingRes.ok) throw new Error(shoppingData.error || "Shopping sync failed");
+
+          let favorites = get().favorites;
+          if (favoritesRes) {
+            const favoritesData = (await favoritesRes.json()) as {
+              favorites?: string[];
+              error?: string;
+            };
+            if (!favoritesRes.ok) throw new Error(favoritesData.error || "Favorites sync failed");
+            favorites = favoritesData.favorites ?? [];
+          } else {
+            favorites = [];
+          }
 
           set({
-            categories,
-            recipes,
+            categories: recipesData.categories ?? [],
+            recipes: (recipesData.recipes ?? []).map((r) => ({
+              ...r,
+              visibility: r.visibility ?? "shared",
+            })),
+            favorites,
+            mealPlan: mealPlanData.mealPlan ?? [],
+            shoppingList: shoppingData.shoppingList ?? [],
             syncStatus: "ready",
             syncError: null,
           });
-
-          // Push any local-only recipes up to the shared cookbook
-          const serverIds = new Set((data.recipes ?? []).map((r) => r.id));
-          const missing = recipes.filter((r) => !serverIds.has(r.id));
-          for (const recipe of missing) {
-            try {
-              await fetch("/api/recipes", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  recipe: {
-                    ...recipe,
-                    categoryName: categories.find((c) => c.id === recipe.categoryId)?.name,
-                  },
-                }),
-              });
-            } catch {
-              /* keep local; retry next sync */
-            }
-          }
         } catch (err) {
-          // Keep whatever is already in localStorage — do not wipe recipes
           set({
             syncStatus: wasReady || get().recipes.length > 0 ? "ready" : "error",
             syncError: err instanceof Error ? err.message : "Sync failed",
@@ -175,12 +198,38 @@ export const useKitchenStore = create<KitchenState>()(
         }
       },
 
-      toggleFavorite: (recipeId) =>
-        set((s) => ({
-          favorites: s.favorites.includes(recipeId)
-            ? s.favorites.filter((id) => id !== recipeId)
-            : [...s.favorites, recipeId],
-        })),
+      hydrateShared: async () => get().hydrateFromServer(),
+
+      toggleFavorite: async (recipeId) => {
+        const user = get().user;
+        if (!user) return;
+
+        const prev = get().favorites;
+        const favorited = !prev.includes(recipeId);
+        set({
+          favorites: favorited
+            ? [...prev, recipeId]
+            : prev.filter((id) => id !== recipeId),
+        });
+
+        try {
+          const res = await fetch("/api/favorites", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: user.id, recipeId, favorited }),
+          });
+          const data = (await res.json()) as { favorites?: string[]; error?: string };
+          if (!res.ok || !data.favorites) {
+            throw new Error(data.error || "Не вдалося оновити вибране");
+          }
+          set({ favorites: data.favorites, syncError: null });
+        } catch (err) {
+          set({
+            favorites: prev,
+            syncError: err instanceof Error ? err.message : "Не вдалося оновити вибране",
+          });
+        }
+      },
 
       addRecipe: async (input) => {
         const user = get().user ?? demoUser;
@@ -228,7 +277,6 @@ export const useKitchenStore = create<KitchenState>()(
         recipes = split.recipes;
         const savedLocal = recipes.find((r) => r.id === localRecipe.id) ?? localRecipe;
 
-        // Save to browser immediately so refresh never loses the recipe
         set({ categories, recipes, syncStatus: "ready" });
 
         try {
@@ -250,12 +298,7 @@ export const useKitchenStore = create<KitchenState>()(
           };
 
           if (res.ok && data.kitchen) {
-            set({
-              categories: mergeById(data.kitchen.categories, get().categories),
-              recipes: mergeRecipes(data.kitchen.recipes, get().recipes),
-              syncStatus: "ready",
-              syncError: null,
-            });
+            set(applyKitchen(data.kitchen));
             return (
               get().recipes.find((r) => r.id === savedLocal.id) ??
               data.recipe ??
@@ -264,13 +307,16 @@ export const useKitchenStore = create<KitchenState>()(
           }
 
           if (res.ok && data.recipe) {
+            const serverRecipe: Recipe = { ...data.recipe, visibility: "shared" };
             set((s) => ({
-              recipes: mergeRecipes([data.recipe!], s.recipes),
+              recipes: [
+                ...s.recipes.filter((r) => r.id !== serverRecipe.id && r.id !== savedLocal.id),
+                serverRecipe,
+              ],
             }));
-            return data.recipe;
+            return serverRecipe;
           }
 
-          // Server failed — local copy already saved
           set({ syncError: data.error || "Збережено лише на цьому пристрої" });
           return savedLocal;
         } catch {
@@ -298,7 +344,6 @@ export const useKitchenStore = create<KitchenState>()(
           steps: input.steps ?? existing.steps,
         };
 
-        // Manual category wins; otherwise re-pick from content
         const suggestable = {
           title: draft.title,
           description: draft.description,
@@ -315,7 +360,6 @@ export const useKitchenStore = create<KitchenState>()(
         let subcategoryId: string | undefined;
         let subcategoryName = input.subcategoryName;
         if (!subcategoryName && categoryName === "Напої" && input.categoryName !== undefined) {
-          // Manual Напої without subgroup → suggest one
           subcategoryName = suggestDrinkSubgroup(suggestable);
         } else if (!subcategoryName && !input.categoryName && categoryName === "Напої") {
           subcategoryName = suggestDrinkSubgroup(suggestable);
@@ -376,20 +420,16 @@ export const useKitchenStore = create<KitchenState>()(
           };
 
           if (res.ok && data.kitchen) {
-            set({
-              categories: mergeById(data.kitchen.categories, get().categories),
-              recipes: mergeRecipes(data.kitchen.recipes, get().recipes),
-              syncStatus: "ready",
-              syncError: null,
-            });
+            set(applyKitchen(data.kitchen));
             return get().recipes.find((r) => r.id === id) ?? data.recipe ?? savedLocal;
           }
 
           if (res.ok && data.recipe) {
+            const serverRecipe: Recipe = { ...data.recipe, visibility: "shared" };
             set((s) => ({
-              recipes: mergeRecipes([data.recipe!], s.recipes),
+              recipes: s.recipes.map((r) => (r.id === id ? serverRecipe : r)),
             }));
-            return data.recipe;
+            return serverRecipe;
           }
 
           set({ syncError: data.error || "Збережено лише на цьому пристрої" });
@@ -401,6 +441,11 @@ export const useKitchenStore = create<KitchenState>()(
       },
 
       deleteRecipe: async (id) => {
+        const prev = {
+          recipes: get().recipes,
+          favorites: get().favorites,
+          mealPlan: get().mealPlan,
+        };
         set((s) => ({
           recipes: s.recipes.filter((r) => r.id !== id),
           favorites: s.favorites.filter((fid) => fid !== id),
@@ -421,21 +466,24 @@ export const useKitchenStore = create<KitchenState>()(
 
           if (res.ok && data.kitchen) {
             set({
-              categories: mergeById(data.kitchen.categories, get().categories),
-              recipes: mergeRecipes(data.kitchen.recipes, get().recipes).filter(
-                (r) => r.id !== id,
-              ),
-              syncStatus: "ready",
-              syncError: null,
+              ...applyKitchen(data.kitchen),
+              favorites: get().favorites.filter((fid) => fid !== id),
+              mealPlan: get().mealPlan.filter((m) => m.recipeId !== id),
             });
             return;
           }
 
           if (!res.ok) {
-            set({ syncError: data.error || "Видалено лише на цьому пристрої" });
+            set({
+              ...prev,
+              syncError: data.error || "Видалено лише на цьому пристрої",
+            });
           }
         } catch {
-          set({ syncError: "Видалено на цьому пристрої (офлайн)" });
+          set({
+            ...prev,
+            syncError: "Видалено на цьому пристрої (офлайн)",
+          });
         }
       },
 
@@ -461,11 +509,7 @@ export const useKitchenStore = create<KitchenState>()(
           };
 
           if (res.ok && data.kitchen) {
-            set({
-              categories: mergeById(data.kitchen.categories, get().categories),
-              syncStatus: "ready",
-              syncError: null,
-            });
+            set(applyKitchen(data.kitchen));
             return (
               data.category ||
               get().categories.find(
@@ -518,60 +562,140 @@ export const useKitchenStore = create<KitchenState>()(
             kitchen?: { categories: Category[]; recipes: Recipe[] };
           };
           if (data.kitchen) {
-            set({
-              categories: mergeById(data.kitchen.categories, get().categories),
-              recipes: mergeRecipes(data.kitchen.recipes, get().recipes),
-            });
+            set(applyKitchen(data.kitchen));
           }
         } catch {
           /* local already updated */
         }
       },
 
-      addToPlan: (date, mealType, recipeId, servings) =>
-        set((s) => ({
-          mealPlan: [
-            ...s.mealPlan,
-            { id: uid("mp"), date, mealType, recipeId, servings },
-          ],
-        })),
+      addToPlan: async (date, mealType, recipeId, servings) => {
+        const familyId = familyIdOf(get().user);
+        const prev = get().mealPlan;
+        const optimistic: MealPlanEntry = {
+          id: uid("mp"),
+          date,
+          mealType,
+          recipeId,
+          servings,
+        };
+        set({ mealPlan: [...prev, optimistic] });
 
-      removeFromPlan: (entryId) =>
-        set((s) => ({ mealPlan: s.mealPlan.filter((e) => e.id !== entryId) })),
+        try {
+          const res = await fetch("/api/meal-plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              familyId,
+              entry: { date, mealType, recipeId, servings },
+            }),
+          });
+          const data = (await res.json()) as {
+            entry?: MealPlanEntry;
+            mealPlan?: MealPlanEntry[];
+            error?: string;
+          };
+          if (!res.ok || !data.mealPlan) {
+            throw new Error(data.error || "Не вдалося додати до плану");
+          }
+          set({ mealPlan: data.mealPlan, syncError: null });
+        } catch (err) {
+          set({
+            mealPlan: prev,
+            syncError: err instanceof Error ? err.message : "Не вдалося додати до плану",
+          });
+        }
+      },
 
-      generateShoppingList: () => {
-        const { mealPlan, recipes, shoppingList } = get();
+      removeFromPlan: async (entryId) => {
+        const prev = get().mealPlan;
+        set({ mealPlan: prev.filter((e) => e.id !== entryId) });
+
+        try {
+          const res = await fetch(
+            `/api/meal-plan?id=${encodeURIComponent(entryId)}`,
+            { method: "DELETE" },
+          );
+          const data = (await res.json()) as { deletedId?: string; error?: string };
+          if (!res.ok) {
+            throw new Error(data.error || "Не вдалося видалити з плану");
+          }
+          set({ syncError: null });
+        } catch (err) {
+          set({
+            mealPlan: prev,
+            syncError: err instanceof Error ? err.message : "Не вдалося видалити з плану",
+          });
+        }
+      },
+
+      generateShoppingList: async () => {
+        const { mealPlan, recipes, shoppingList, user } = get();
+        const familyId = familyIdOf(user);
         const extras = shoppingList.filter((i) => !i.fromRecipes);
         const checkedMap = new Map(shoppingList.map((i) => [i.id, i.checked]));
         const next = buildShoppingList(mealPlan, recipes, extras).map((item) => ({
           ...item,
           checked: checkedMap.get(item.id) ?? false,
         }));
+        const prev = shoppingList;
         set({ shoppingList: next });
+
+        try {
+          const saved = await putShoppingList(familyId, next);
+          set({ shoppingList: saved, syncError: null });
+        } catch (err) {
+          set({
+            shoppingList: prev,
+            syncError: err instanceof Error ? err.message : "Не вдалося зберегти список покупок",
+          });
+        }
       },
 
-      toggleShoppingItem: (id) =>
-        set((s) => ({
-          shoppingList: s.shoppingList.map((i) =>
-            i.id === id ? { ...i, checked: !i.checked } : i,
-          ),
-        })),
+      toggleShoppingItem: async (id) => {
+        const prev = get().shoppingList;
+        const next = prev.map((i) =>
+          i.id === id ? { ...i, checked: !i.checked } : i,
+        );
+        set({ shoppingList: next });
 
-      addCustomShoppingItem: (name, amount, unit) =>
-        set((s) => ({
-          shoppingList: [
-            ...s.shoppingList,
-            {
-              id: uid("shop"),
-              name,
-              amount,
-              unit,
-              aisle: "other",
-              checked: false,
-              fromRecipes: false,
-            },
-          ],
-        })),
+        try {
+          const saved = await putShoppingList(familyIdOf(get().user), next);
+          set({ shoppingList: saved, syncError: null });
+        } catch (err) {
+          set({
+            shoppingList: prev,
+            syncError: err instanceof Error ? err.message : "Не вдалося зберегти список покупок",
+          });
+        }
+      },
+
+      addCustomShoppingItem: async (name, amount, unit) => {
+        const prev = get().shoppingList;
+        const next = [
+          ...prev,
+          {
+            id: uid("shop"),
+            name,
+            amount,
+            unit,
+            aisle: "other" as const,
+            checked: false,
+            fromRecipes: false,
+          },
+        ];
+        set({ shoppingList: next });
+
+        try {
+          const saved = await putShoppingList(familyIdOf(get().user), next);
+          set({ shoppingList: saved, syncError: null });
+        } catch (err) {
+          set({
+            shoppingList: prev,
+            syncError: err instanceof Error ? err.message : "Не вдалося зберегти список покупок",
+          });
+        }
+      },
 
       pushSearchHistory: (query, kind) => {
         const trimmed = query.trim();
@@ -589,24 +713,11 @@ export const useKitchenStore = create<KitchenState>()(
       visibleRecipes: () => get().recipes.filter((r) => r.visibility !== "private"),
     }),
     {
-      name: "oselya-kitchen-v4",
+      name: "oselya-kitchen-v5",
       partialize: (state) => ({
         user: state.user,
-        categories: state.categories,
-        recipes: state.recipes,
-        favorites: state.favorites,
-        mealPlan: state.mealPlan,
-        shoppingList: state.shoppingList,
         searchHistory: state.searchHistory,
       }),
     },
   ),
 );
-
-function nextWeekday(offset: number): string {
-  const d = new Date();
-  const day = d.getDay();
-  const toMonday = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + toMonday + offset);
-  return d.toISOString().slice(0, 10);
-}

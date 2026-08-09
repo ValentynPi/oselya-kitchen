@@ -3,19 +3,19 @@
 import { useEffect } from "react";
 import { useKitchenStore } from "@/lib/store";
 
-/** Loads the shared cookbook so every visitor sees the same recipes. */
+/** Hydrates recipes, favorites, meal plan, and shopping from server APIs. */
 export function SharedKitchenSync() {
-  const hydrateShared = useKitchenStore((s) => s.hydrateShared);
+  const hydrateFromServer = useKitchenStore((s) => s.hydrateFromServer);
   const syncStatus = useKitchenStore((s) => s.syncStatus);
   const recipeCount = useKitchenStore((s) => s.recipes.length);
 
   useEffect(() => {
-    void hydrateShared();
+    void hydrateFromServer();
     const id = window.setInterval(() => {
-      void hydrateShared();
+      void hydrateFromServer();
     }, 30000);
     return () => window.clearInterval(id);
-  }, [hydrateShared]);
+  }, [hydrateFromServer]);
 
   if (syncStatus === "error" && recipeCount === 0) {
     return (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCategory } from "@/lib/ai";
-import { getSharedKitchen, saveSharedKitchen } from "@/lib/shared-store";
+import { getKitchen, saveKitchen } from "@/db/kitchen-repo";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,11 +13,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Назва задовга (до 40 символів)" }, { status: 400 });
     }
 
-    const kitchen = await getSharedKitchen();
+    const kitchen = await getKitchen();
     const ensured = ensureCategory(kitchen.categories, name);
-    const next = await saveSharedKitchen({
+    const next = await saveKitchen({
       ...kitchen,
       categories: ensured.categories,
+      updatedAt: new Date().toISOString(),
     });
     const category = next.categories.find((c) => c.id === ensured.categoryId);
 
