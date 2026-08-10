@@ -207,12 +207,12 @@ export async function enrichRecipeWithAi(
     };
   }
 
-  const payload = await completeJson<AiRecipePayload>(
+  const result = await completeJson<AiRecipePayload>(
     systemPrompt(),
     userPrompt(recipe),
   );
 
-  if (!payload) {
+  if (!result.ok) {
     const categoryName = suggestCategoryName({
       title: recipe.title,
       description: recipe.description,
@@ -228,10 +228,12 @@ export async function enrichRecipeWithAi(
       aiUsed: false,
       warnings: [
         ...recipe.warnings,
-        "ШІ тимчасово недоступний — використано евристику.",
+        `ШІ не спрацював (${result.error}) — використано евристику.`,
       ],
     };
   }
+
+  const payload = result.data;
 
   const title = String(payload.title || recipe.title).trim().slice(0, 160) || recipe.title;
   const description =
@@ -301,7 +303,7 @@ export async function suggestCategoryWithAi(
     return suggestCategoryName(recipe);
   }
 
-  const payload = await completeJson<{ categoryName?: string }>(
+  const result = await completeJson<{ categoryName?: string }>(
     "Ти класифікуєш рецепти для української сімейної кухні. Відповідай лише JSON.",
     [
       `Дозволені категорії: ${RECIPE_GROUPS.join(", ")}.`,
@@ -312,7 +314,7 @@ export async function suggestCategoryWithAi(
     ].join("\n"),
   );
 
-  const name = String(payload?.categoryName || "").trim();
+  const name = String(result.ok ? result.data.categoryName || "" : "").trim();
   if (GROUP_SET.has(name)) return name;
   return suggestCategoryName(recipe);
 }
