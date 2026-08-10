@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCategory, maybeSplitCategory, suggestCategoryName, suggestDrinkSubgroup, suggestMealTypes } from "@/lib/ai";
-import { getKitchen, saveKitchen } from "@/db/kitchen-repo";
+import { getKitchen, saveKitchen, deleteRecipe } from "@/db/kitchen-repo";
 import type { Recipe } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -200,23 +200,22 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const body = (await req.json()) as { id?: string };
-    if (!body.id) {
+    const urlId = req.nextUrl.searchParams.get("id")?.trim();
+    let bodyId: string | undefined;
+    try {
+      const body = (await req.json()) as { id?: string };
+      bodyId = body.id?.trim();
+    } catch {
+      bodyId = undefined;
+    }
+    const id = urlId || bodyId;
+    if (!id) {
       return NextResponse.json({ error: "Recipe id is required" }, { status: 400 });
     }
 
+    await deleteRecipe(id);
     const kitchen = await getKitchen();
-    if (!kitchen.recipes.some((r) => r.id === body.id)) {
-      return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
-    }
-
-    const recipes = kitchen.recipes.filter((r) => r.id !== body.id);
-    const next = await saveKitchen({
-      ...kitchen,
-      recipes,
-      updatedAt: new Date().toISOString(),
-    });
-    return NextResponse.json({ kitchen: next, deletedId: body.id });
+    return NextResponse.json({ kitchen, deletedId: id });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to delete recipe";
     return NextResponse.json({ error: message }, { status: 500 });

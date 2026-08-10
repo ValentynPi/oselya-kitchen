@@ -45,7 +45,7 @@ async function main() {
   const kitchen = migrated ?? fromSeed();
   const source = migrated ? "data/shared-kitchen.json" : "src/lib/seed.ts";
 
-  const saved = await saveKitchen(kitchen);
+  const saved = await saveKitchen(kitchen, { pruneMissing: false });
 
   console.log(
     JSON.stringify({

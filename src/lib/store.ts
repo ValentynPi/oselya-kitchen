@@ -454,13 +454,12 @@ export const useKitchenStore = create<KitchenState>()(
         }));
 
         try {
-          const res = await fetch("/api/recipes", {
+          const res = await fetch(`/api/recipes?id=${encodeURIComponent(id)}`, {
             method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
           });
           const data = (await res.json()) as {
             kitchen?: { categories: Category[]; recipes: Recipe[] };
+            deletedId?: string;
             error?: string;
           };
 
@@ -469,6 +468,7 @@ export const useKitchenStore = create<KitchenState>()(
               ...applyKitchen(data.kitchen),
               favorites: get().favorites.filter((fid) => fid !== id),
               mealPlan: get().mealPlan.filter((m) => m.recipeId !== id),
+              syncError: null,
             });
             return;
           }
@@ -476,13 +476,13 @@ export const useKitchenStore = create<KitchenState>()(
           if (!res.ok) {
             set({
               ...prev,
-              syncError: data.error || "Видалено лише на цьому пристрої",
+              syncError: data.error || "Не вдалося видалити рецепт",
             });
           }
         } catch {
           set({
             ...prev,
-            syncError: "Видалено на цьому пристрої (офлайн)",
+            syncError: "Не вдалося видалити рецепт (мережа)",
           });
         }
       },

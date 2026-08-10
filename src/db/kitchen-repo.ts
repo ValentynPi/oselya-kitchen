@@ -24,6 +24,7 @@ import type {
 } from "@/lib/types";
 
 const UPDATED_AT_KEY = "kitchen_updated_at";
+const DELETED_RECIPE_IDS_KEY = "deleted_recipe_ids";
 export const DEFAULT_FAMILY_ID = "family-koval";
 
 export interface SharedKitchen {
@@ -145,25 +146,62 @@ async function getUpdatedAt(): Promise<string> {
 
 export async function getKitchen(): Promise<SharedKitchen> {
   const db = getDb();
-  const [categoryRows, recipeRows, updatedAt] = await Promise.all([
+  const [categoryRows, recipeRows, updatedAt, deletedIds] = await Promise.all([
     db.select().from(categories),
     db.select().from(recipes),
     getUpdatedAt(),
+    readDeletedRecipeIds(db),
   ]);
 
   return {
     categories: categoryRows.map(rowToCategory),
-    recipes: recipeRows.map(rowToRecipe),
+    recipes: recipeRows
+      .map(rowToRecipe)
+      .filter((r) => !deletedIds.has(r.id)),
     updatedAt,
   };
 }
 
+async function readDeletedRecipeIds(
+  runner: ReturnType<typeof getDb> = getDb(),
+): Promise<Set<string>> {
+  const rows = await runner.select().from(meta).where(eq(meta.key, DELETED_RECIPE_IDS_KEY)).limit(1);
+  if (!rows[0]?.value) return new Set();
+  try {
+    const parsed = JSON.parse(rows[0].value) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((id): id is string => typeof id === "string" && id.length > 0));
+  } catch {
+    return new Set();
+  }
+}
+
+async function writeDeletedRecipeIds(
+  ids: Set<string>,
+  runner: ReturnType<typeof getDb> = getDb(),
+): Promise<void> {
+  const value = JSON.stringify([...ids].sort());
+  await runner
+    .insert(meta)
+    .values({ key: DELETED_RECIPE_IDS_KEY, value })
+    .onConflictDoUpdate({
+      target: meta.key,
+      set: { value },
+    });
+}
+
 /** Persist full kitchen snapshot (categories + recipes). Idempotent upserts; removes missing rows. */
-export async function saveKitchen(kitchen: SharedKitchen): Promise<SharedKitchen> {
+export async function saveKitchen(
+  kitchen: SharedKitchen,
+  options?: { pruneMissing?: boolean },
+): Promise<SharedKitchen> {
   const db = getDb();
+  const pruneMissing = options?.pruneMissing ?? true;
   const updatedAt = kitchen.updatedAt || new Date().toISOString();
+  const deletedIds = await readDeletedRecipeIds(db);
+  const liveRecipes = kitchen.recipes.filter((r) => !deletedIds.has(r.id));
   const categoryIds = kitchen.categories.map((c) => c.id);
-  const recipeIds = kitchen.recipes.map((r) => r.id);
+  const recipeIds = liveRecipes.map((r) => r.id);
 
   await db.transaction(async (tx) => {
     for (const category of kitchen.categories) {
@@ -181,7 +219,7 @@ export async function saveKitchen(kitchen: SharedKitchen): Promise<SharedKitchen
         });
     }
 
-    for (const recipe of kitchen.recipes) {
+    for (const recipe of liveRecipes) {
       const row = recipeToRow(recipe);
       await tx
         .insert(recipes)
@@ -210,20 +248,24 @@ export async function saveKitchen(kitchen: SharedKitchen): Promise<SharedKitchen
         });
     }
 
-    const existingRecipes = await tx.select({ id: recipes.id }).from(recipes);
-    const toDeleteRecipes = existingRecipes
-      .map((r) => r.id)
-      .filter((id) => !recipeIds.includes(id));
-    if (toDeleteRecipes.length > 0) {
-      await tx.delete(recipes).where(inArray(recipes.id, toDeleteRecipes));
-    }
+    if (pruneMissing) {
+      const existingRecipes = await tx.select({ id: recipes.id }).from(recipes);
+      const toDeleteRecipes = existingRecipes
+        .map((r) => r.id)
+        .filter((id) => !recipeIds.includes(id));
+      if (toDeleteRecipes.length > 0) {
+        await tx.delete(favorites).where(inArray(favorites.recipeId, toDeleteRecipes));
+        await tx.delete(mealPlanEntries).where(inArray(mealPlanEntries.recipeId, toDeleteRecipes));
+        await tx.delete(recipes).where(inArray(recipes.id, toDeleteRecipes));
+      }
 
-    const existingCategories = await tx.select({ id: categories.id }).from(categories);
-    const toDeleteCategories = existingCategories
-      .map((c) => c.id)
-      .filter((id) => !categoryIds.includes(id));
-    if (toDeleteCategories.length > 0) {
-      await tx.delete(categories).where(inArray(categories.id, toDeleteCategories));
+      const existingCategories = await tx.select({ id: categories.id }).from(categories);
+      const toDeleteCategories = existingCategories
+        .map((c) => c.id)
+        .filter((id) => !categoryIds.includes(id));
+      if (toDeleteCategories.length > 0) {
+        await tx.delete(categories).where(inArray(categories.id, toDeleteCategories));
+      }
     }
 
     await tx
@@ -235,7 +277,7 @@ export async function saveKitchen(kitchen: SharedKitchen): Promise<SharedKitchen
       });
   });
 
-  return { ...kitchen, updatedAt };
+  return { categories: kitchen.categories, recipes: liveRecipes, updatedAt };
 }
 
 export async function createRecipe(recipe: Recipe): Promise<Recipe> {
@@ -288,12 +330,17 @@ export async function updateRecipe(
   return next;
 }
 
-export async function deleteRecipe(id: string): Promise<boolean> {
+/** Permanently delete a recipe and related favorites / meal-plan rows. Survives re-seed. */
+export async function deleteRecipe(id: string): Promise<void> {
   const db = getDb();
-  const result = await db.delete(recipes).where(eq(recipes.id, id));
-  const deleted = (result.rowsAffected ?? 0) > 0;
-  if (deleted) await setUpdatedAt(new Date().toISOString());
-  return deleted;
+  const deletedIds = await readDeletedRecipeIds(db);
+  deletedIds.add(id);
+  await writeDeletedRecipeIds(deletedIds, db);
+
+  await db.delete(favorites).where(eq(favorites.recipeId, id));
+  await db.delete(mealPlanEntries).where(eq(mealPlanEntries.recipeId, id));
+  await db.delete(recipes).where(eq(recipes.id, id));
+  await setUpdatedAt(new Date().toISOString());
 }
 
 export async function addCategory(category: Category): Promise<Category> {
