@@ -214,7 +214,7 @@ export const initialRecipes: Recipe[] = [
     authorId: "user-andriy",
     authorName: "Андрій Коваль",
     visibility: "shared",
-    imageUrl: img("photo-1523677011783-c91d1bbe2fdc"),
+    imageUrl: img("photo-1497534446932-c925b458314e"),
     cookTimeMinutes: 10,
     mealTypes: ["snack"],
     dietTags: ["vegan", "gluten-free", "dairy-free"],

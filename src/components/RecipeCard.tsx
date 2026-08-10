@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Heart, Clock } from "lucide-react";
@@ -8,20 +9,27 @@ import { useKitchenStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { formatIngredientDisplay } from "@/lib/ingredients";
 
+const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80";
+
 export function RecipeCard({ recipe, badge }: { recipe: Recipe; badge?: string }) {
   const favorites = useKitchenStore((s) => s.favorites);
   const toggleFavorite = useKitchenStore((s) => s.toggleFavorite);
   const isFav = favorites.includes(recipe.id);
+  const [src, setSrc] = useState(recipe.imageUrl || FALLBACK_IMAGE);
 
   return (
     <article className="group relative overflow-hidden rounded-2xl bg-surface/70 shadow-[0_1px_0_rgba(20,32,26,0.06)] ring-1 ring-line/70 transition duration-300 hover:-translate-y-0.5 hover:shadow-md">
       <Link href={`/recipes/${recipe.id}`} className="block">
         <div className="relative aspect-[4/3] overflow-hidden">
           <Image
-            src={recipe.imageUrl}
+            src={src}
             alt={recipe.title}
             fill
-            unoptimized={!recipe.imageUrl.includes("images.unsplash.com")}
+            unoptimized={!src.includes("images.unsplash.com")}
+            onError={() => {
+              if (src !== FALLBACK_IMAGE) setSrc(FALLBACK_IMAGE);
+            }}
             className="object-cover transition duration-500 group-hover:scale-[1.03]"
             sizes="(max-width:768px) 100vw, 33vw"
           />

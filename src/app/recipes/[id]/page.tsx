@@ -26,8 +26,13 @@ export default function RecipeDetailPage({
   const [mounted, setMounted] = useState(false);
   const [added, setAdded] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const recipe = recipes.find((r) => r.id === id);
+    if (recipe) setImageSrc(recipe.imageUrl);
+  }, [recipes, id]);
 
   const recipe = mounted ? recipes.find((r) => r.id === id) : undefined;
   const category = recipe
@@ -65,10 +70,15 @@ export default function RecipeDetailPage({
       <article className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <div className="relative aspect-[16/9] overflow-hidden rounded-3xl">
           <Image
-            src={recipe.imageUrl}
+            src={imageSrc || recipe.imageUrl}
             alt={recipe.title}
             fill
-            unoptimized={!recipe.imageUrl.includes("images.unsplash.com")}
+            unoptimized={!(imageSrc || recipe.imageUrl).includes("images.unsplash.com")}
+            onError={() =>
+              setImageSrc(
+                "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1200&q=80",
+              )
+            }
             className="object-cover"
             sizes="100vw"
             priority
