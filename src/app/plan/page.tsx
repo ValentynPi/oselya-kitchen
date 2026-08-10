@@ -117,9 +117,11 @@ export default function PlanPage() {
             Додати до плану
           </h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="text-sm">
+            <label className="text-sm" htmlFor="plan-date">
               <span className="text-ink-soft">Дата</span>
               <select
+                id="plan-date"
+                name="plan-date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-line bg-cream/50 px-3 py-2"
@@ -131,9 +133,11 @@ export default function PlanPage() {
                 ))}
               </select>
             </label>
-            <label className="text-sm">
+            <label className="text-sm" htmlFor="plan-meal-type">
               <span className="text-ink-soft">Прийом їжі</span>
               <select
+                id="plan-meal-type"
+                name="plan-meal-type"
                 value={mealType}
                 onChange={(e) => setMealType(e.target.value as MealType)}
                 className="mt-1 w-full rounded-xl border border-line bg-cream/50 px-3 py-2"
@@ -145,9 +149,11 @@ export default function PlanPage() {
                 ))}
               </select>
             </label>
-            <label className="text-sm">
+            <label className="text-sm" htmlFor="plan-recipe">
               <span className="text-ink-soft">Рецепт</span>
               <select
+                id="plan-recipe"
+                name="plan-recipe"
                 value={recipeId}
                 onChange={(e) => {
                   setRecipeId(e.target.value);
@@ -164,9 +170,11 @@ export default function PlanPage() {
                 ))}
               </select>
             </label>
-            <label className="text-sm">
+            <label className="text-sm" htmlFor="plan-servings">
               <span className="text-ink-soft">Порції</span>
               <input
+                id="plan-servings"
+                name="plan-servings"
                 type="number"
                 min={1}
                 value={servings}

@@ -198,18 +198,22 @@ export default function EditRecipePage({
         </div>
 
         <div className="mt-8 space-y-6">
-          <label className="block">
+          <label className="block" htmlFor="recipe-title">
             <span className="mb-1.5 block text-sm text-ink-soft">Назва</span>
             <input
+              id="recipe-title"
+              name="recipe-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-xl border border-line bg-cream/60 px-4 py-3 outline-none focus:border-leaf"
             />
           </label>
 
-          <label className="block">
+          <label className="block" htmlFor="recipe-description">
             <span className="mb-1.5 block text-sm text-ink-soft">Опис</span>
             <textarea
+              id="recipe-description"
+              name="recipe-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -218,9 +222,11 @@ export default function EditRecipePage({
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
+            <label className="block" htmlFor="recipe-cook-time">
               <span className="mb-1.5 block text-sm text-ink-soft">Час (хв)</span>
               <input
+                id="recipe-cook-time"
+                name="recipe-cook-time"
                 type="number"
                 min={1}
                 value={cookTimeMinutes}
@@ -228,9 +234,11 @@ export default function EditRecipePage({
                 className="w-full rounded-xl border border-line bg-cream/60 px-4 py-3 outline-none focus:border-leaf"
               />
             </label>
-            <label className="block">
+            <label className="block" htmlFor="recipe-servings">
               <span className="mb-1.5 block text-sm text-ink-soft">Порції</span>
               <input
+                id="recipe-servings"
+                name="recipe-servings"
                 type="number"
                 min={1}
                 value={servings}
@@ -240,18 +248,22 @@ export default function EditRecipePage({
             </label>
           </div>
 
-          <label className="block">
+          <label className="block" htmlFor="recipe-image-url">
             <span className="mb-1.5 block text-sm text-ink-soft">Посилання на фото</span>
             <input
+              id="recipe-image-url"
+              name="recipe-image-url"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               className="w-full rounded-xl border border-line bg-cream/60 px-4 py-3 outline-none focus:border-leaf"
             />
           </label>
 
-          <label className="block">
+          <label className="block" htmlFor="recipe-source-url">
             <span className="mb-1.5 block text-sm text-ink-soft">Джерело (URL)</span>
             <input
+              id="recipe-source-url"
+              name="recipe-source-url"
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
               className="w-full rounded-xl border border-line bg-cream/60 px-4 py-3 outline-none focus:border-leaf"
@@ -315,6 +327,8 @@ export default function EditRecipePage({
                   className="grid grid-cols-[4.5rem_4.5rem_minmax(0,1fr)_2.25rem] items-center gap-2"
                 >
                   <input
+                    id={`ingredient-amount-${idx}`}
+                    name={`ingredient-amount-${idx}`}
                     type="number"
                     step="any"
                     value={ing.amount}
@@ -326,6 +340,8 @@ export default function EditRecipePage({
                     className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
                   />
                   <input
+                    id={`ingredient-unit-${idx}`}
+                    name={`ingredient-unit-${idx}`}
                     value={ing.unit}
                     onChange={(e) => {
                       const next = [...ingredients];
@@ -335,6 +351,8 @@ export default function EditRecipePage({
                     className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
                   />
                   <input
+                    id={`ingredient-name-${idx}`}
+                    name={`ingredient-name-${idx}`}
                     value={ing.name}
                     onChange={(e) => {
                       const next = [...ingredients];
@@ -395,6 +413,8 @@ export default function EditRecipePage({
                     {idx + 1}
                   </span>
                   <textarea
+                    id={`step-text-${idx}`}
+                    name={`step-text-${idx}`}
                     value={step.text}
                     onChange={(e) => {
                       const next = [...steps];

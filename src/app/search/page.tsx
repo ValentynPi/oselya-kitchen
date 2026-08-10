@@ -96,9 +96,11 @@ export default function SearchPage() {
 
         <div className="mt-6 rounded-2xl bg-surface/80 p-5 ring-1 ring-line/70">
           {mode === "ingredients" ? (
-            <label className="block">
+            <label className="block" htmlFor="search-ingredients">
               <span className="text-sm text-ink-soft">Продукти через кому</span>
               <textarea
+                id="search-ingredients"
+                name="search-ingredients"
                 value={ingredientsText}
                 onChange={(e) => setIngredientsText(e.target.value)}
                 rows={3}
@@ -106,9 +108,11 @@ export default function SearchPage() {
               />
             </label>
           ) : (
-            <label className="block">
+            <label className="block" htmlFor="search-query">
               <span className="text-sm text-ink-soft">Назва, інструкція, автор, джерело</span>
               <input
+                id="search-query"
+                name="search-query"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="mt-2 w-full rounded-xl border border-line bg-cream/50 px-3 py-2 outline-none focus:border-leaf"
@@ -119,6 +123,7 @@ export default function SearchPage() {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <FilterSelect
+              id="search-cook-time"
               label="Час"
               value={cookTime}
               onChange={(v) => setCookTime(v as typeof cookTime)}
@@ -130,6 +135,7 @@ export default function SearchPage() {
               ]}
             />
             <FilterSelect
+              id="search-meal-type"
               label="Прийом їжі"
               value={mealType}
               onChange={setMealType}
@@ -142,6 +148,7 @@ export default function SearchPage() {
               ]}
             />
             <FilterSelect
+              id="search-diet"
               label="Харчування"
               value={diet}
               onChange={setDiet}
@@ -154,6 +161,7 @@ export default function SearchPage() {
               ]}
             />
             <FilterSelect
+              id="search-method"
               label="Спосіб"
               value={method}
               onChange={setMethod}
@@ -254,20 +262,24 @@ export default function SearchPage() {
 }
 
 function FilterSelect({
+  id,
   label,
   value,
   onChange,
   options,
 }: {
+  id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: [string, string][];
 }) {
   return (
-    <label className="block text-sm">
+    <label className="block text-sm" htmlFor={id}>
       <span className="text-ink-soft">{label}</span>
       <select
+        id={id}
+        name={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full rounded-xl border border-line bg-cream/50 px-3 py-2"

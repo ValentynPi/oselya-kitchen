@@ -118,6 +118,8 @@ export function CategoryPicker({
       {showCustom && (
         <div className="mt-3 flex flex-wrap gap-2 border-t border-line/50 pt-3">
           <input
+            id="custom-category-name"
+            name="custom-category-name"
             value={draftName}
             onChange={(e) => setDraftName(e.target.value)}
             onKeyDown={(e) => {

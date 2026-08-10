@@ -134,18 +134,24 @@ export default function ShoppingPage() {
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-4">
             <input
+              id="shopping-item-name"
+              name="shopping-item-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Назва"
               className="sm:col-span-2 rounded-xl border border-line bg-cream/50 px-3 py-2"
             />
             <input
+              id="shopping-item-amount"
+              name="shopping-item-amount"
               type="number"
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value) || 0)}
               className="rounded-xl border border-line bg-cream/50 px-3 py-2"
             />
             <input
+              id="shopping-item-unit"
+              name="shopping-item-unit"
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
               placeholder="Од."

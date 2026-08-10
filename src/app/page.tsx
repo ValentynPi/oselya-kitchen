@@ -66,10 +66,12 @@ export default function HomePage() {
           </p>
 
           <div className="animate-rise-delay-2 mt-8 max-w-2xl rounded-2xl bg-cream/12 p-3 backdrop-blur-md ring-1 ring-cream/25 sm:p-4">
-            <label className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label className="flex flex-col gap-3 sm:flex-row sm:items-center" htmlFor="home-recipe-url">
               <div className="relative flex-1">
                 <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-cream/70" />
                 <input
+                  id="home-recipe-url"
+                  name="home-recipe-url"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   onKeyDown={(e) => {

@@ -348,11 +348,13 @@ function AddRecipeInner() {
 
       {tab === "url" && !draft && (
         <section className="mt-6 rounded-2xl bg-surface/85 p-5 ring-1 ring-line/70 sm:p-7">
-          <label className="block">
+          <label className="block" htmlFor="extract-url">
             <span className="text-sm text-ink-soft">
               URL сайту з рецептом, Instagram Reels / допис або Facebook
             </span>
             <input
+              id="extract-url"
+              name="extract-url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => {
@@ -390,11 +392,13 @@ function AddRecipeInner() {
 
       {tab === "text" && !draft && (
         <section className="mt-6 rounded-2xl bg-surface/85 p-5 ring-1 ring-line/70 sm:p-7">
-          <label className="block">
+          <label className="block" htmlFor="recipe-paste-text">
             <span className="text-sm text-ink-soft">
               Вставте рецепт з чату, нотаток, Instagram чи будь-якого тексту
             </span>
             <textarea
+              id="recipe-paste-text"
+              name="recipe-paste-text"
               value={pastedText}
               onChange={(e) => setPastedText(e.target.value)}
               rows={12}
@@ -469,16 +473,20 @@ function AddRecipeInner() {
             className="aspect-[16/9] w-full rounded-2xl object-cover ring-1 ring-line/70"
           />
 
-          <Field label="Назва страви">
+          <Field label="Назва страви" htmlFor="recipe-title">
             <input
+              id="recipe-title"
+              name="recipe-title"
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
               className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2.5 outline-none focus:border-leaf"
             />
           </Field>
 
-          <Field label="Короткий опис">
+          <Field label="Короткий опис" htmlFor="recipe-description">
             <textarea
+              id="recipe-description"
+              name="recipe-description"
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               rows={3}
@@ -487,8 +495,10 @@ function AddRecipeInner() {
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Час (хв)">
+            <Field label="Час (хв)" htmlFor="recipe-cook-time">
               <input
+                id="recipe-cook-time"
+                name="recipe-cook-time"
                 type="number"
                 min={1}
                 value={draft.cookTimeMinutes}
@@ -498,8 +508,10 @@ function AddRecipeInner() {
                 className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2.5 outline-none focus:border-leaf"
               />
             </Field>
-            <Field label="Порції">
+            <Field label="Порції" htmlFor="recipe-servings">
               <input
+                id="recipe-servings"
+                name="recipe-servings"
                 type="number"
                 min={1}
                 value={draft.servings}
@@ -511,8 +523,10 @@ function AddRecipeInner() {
             </Field>
           </div>
 
-          <Field label="Посилання на джерело">
+          <Field label="Посилання на джерело" htmlFor="recipe-source-url">
             <input
+              id="recipe-source-url"
+              name="recipe-source-url"
               value={draft.sourceUrl}
               onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
               className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2.5 outline-none focus:border-leaf"
@@ -520,8 +534,10 @@ function AddRecipeInner() {
             />
           </Field>
 
-          <Field label="URL фото">
+          <Field label="URL фото" htmlFor="recipe-image-url">
             <input
+              id="recipe-image-url"
+              name="recipe-image-url"
               value={draft.imageUrl}
               onChange={(e) => setDraft({ ...draft, imageUrl: e.target.value })}
               className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2.5 outline-none focus:border-leaf"
@@ -594,6 +610,8 @@ function AddRecipeInner() {
                   className="grid grid-cols-[4.5rem_4.5rem_minmax(0,1fr)_2.25rem] items-center gap-2"
                 >
                   <input
+                    id={`ingredient-amount-${idx}`}
+                    name={`ingredient-amount-${idx}`}
                     type="number"
                     step="any"
                     value={ing.amount}
@@ -605,6 +623,8 @@ function AddRecipeInner() {
                     className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
                   />
                   <input
+                    id={`ingredient-unit-${idx}`}
+                    name={`ingredient-unit-${idx}`}
                     value={ing.unit}
                     onChange={(e) => {
                       const ingredients = [...draft.ingredients];
@@ -615,6 +635,8 @@ function AddRecipeInner() {
                     className="w-full rounded-xl border border-line bg-cream/60 px-3 py-2 outline-none focus:border-leaf"
                   />
                   <input
+                    id={`ingredient-name-${idx}`}
+                    name={`ingredient-name-${idx}`}
                     value={ing.name}
                     onChange={(e) => {
                       const ingredients = [...draft.ingredients];
@@ -681,6 +703,8 @@ function AddRecipeInner() {
                     {idx + 1}
                   </span>
                   <textarea
+                    id={`step-text-${idx}`}
+                    name={`step-text-${idx}`}
                     value={step.text}
                     onChange={(e) => {
                       const steps = [...draft.steps];
@@ -735,9 +759,17 @@ function AddRecipeInner() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
   return (
-    <label className="block">
+    <label className="block" htmlFor={htmlFor}>
       <span className="text-sm text-ink-soft">{label}</span>
       <div className="mt-1.5">{children}</div>
     </label>

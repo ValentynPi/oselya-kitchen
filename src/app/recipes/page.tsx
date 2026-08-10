@@ -117,6 +117,8 @@ export default function RecipesPage() {
         {showNew && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <input
+              id="category-name"
+              name="category-name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
